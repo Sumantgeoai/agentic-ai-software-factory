@@ -86,6 +86,8 @@ class SpecialistArtifactAgent:
         plan: TaskPlan,
     ) -> ArtifactSet:
         assigned = [item for item in plan.items if item.owner is self.role]
+        if not assigned:
+            return ArtifactSet()
         return await self._model.complete(
             ArtifactSet,
             system=(
