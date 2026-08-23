@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from opentelemetry.trace import Status, StatusCode
 
 from .config import Settings
-from .contracts import AuditEvent, FactoryRun, ProjectRequest, StoredRun
+from .contracts import AuditEvent, FactoryRunView, ProjectRequest, StoredRunView
 from .observability import configure_observability, correlation_context, get_tracer
 from .service import SoftwareFactoryService
 
@@ -78,25 +78,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key)])
 
-    @router.post("/projects/run", response_model=FactoryRun)
-    async def run_project(payload: ProjectRequest, request: Request) -> FactoryRun:
+    @router.post("/projects/run", response_model=FactoryRunView)
+    async def run_project(payload: ProjectRequest, request: Request) -> FactoryRunView:
         try:
-            return await request.app.state.factory.run(
+            run = await request.app.state.factory.run(
                 payload,
                 correlation_id=request.headers.get("X-Correlation-ID"),
             )
+            return FactoryRunView.from_run(run)
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(
                 status_code=422,
                 detail="Factory request could not be completed",
             ) from exc
 
-    @router.get("/runs/{project_id}", response_model=StoredRun)
-    async def get_run(project_id: UUID, request: Request) -> StoredRun:
+    @router.get("/runs/{project_id}", response_model=StoredRunView)
+    async def get_run(project_id: UUID, request: Request) -> StoredRunView:
         run = await request.app.state.factory.get_run(project_id)
         if run is None:
             raise HTTPException(status_code=404, detail="Run not found")
-        return run
+        return StoredRunView.from_stored(run)
 
     @router.get("/runs/{project_id}/audit", response_model=list[AuditEvent])
     async def get_audit(project_id: UUID, request: Request) -> list[AuditEvent]:
