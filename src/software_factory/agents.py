@@ -133,8 +133,9 @@ class BackendAgent(SpecialistArtifactAgent):
         return await self._model.complete(
             CodeBundle,
             system=(
-                "You are repairing a failed integrated implementation. Use deterministic build/test "
-                "evidence as the source of truth. Return a complete corrected file bundle."
+                "You are repairing a failed integrated implementation. Use deterministic "
+                "build/test evidence as the source of truth. Return a complete corrected file "
+                "bundle."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
