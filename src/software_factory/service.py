@@ -15,7 +15,9 @@ class SoftwareFactoryService:
         self.settings = settings
         self.model = model or self._create_model(settings)
         runtime = WorkspaceRuntime(
-            WorkspacePolicy(settings.workspace_root, timeout_seconds=settings.command_timeout_seconds)
+            WorkspacePolicy(
+                settings.workspace_root, timeout_seconds=settings.command_timeout_seconds
+            )
         )
         self.nodes = WorkflowNodes(
             product_owner=ProductOwnerAgent(self.model),

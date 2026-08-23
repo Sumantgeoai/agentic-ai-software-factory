@@ -15,11 +15,11 @@ dependencies = [
   "mcp>=2,<3",
   "pydantic>=2.12,<3",
   "uvicorn[standard]>=0.35,<1",
+  "pytest>=9,<10",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=9,<10",
   "pytest-asyncio>=1.2,<2",
   "ruff>=0.12,<1",
 ]

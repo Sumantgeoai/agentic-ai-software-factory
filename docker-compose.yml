@@ -3,7 +3,9 @@ services:
     build: .
     ports:
       - "8080:8080"
-    env_file:
-      - .env
+    environment:
+      SOFTWARE_FACTORY_MODEL_PROVIDER: ${SOFTWARE_FACTORY_MODEL_PROVIDER:-fixture}
+      SOFTWARE_FACTORY_NVIDIA_API_KEY: ${SOFTWARE_FACTORY_NVIDIA_API_KEY:-}
+      SOFTWARE_FACTORY_WORKSPACE_ROOT: /app/workspaces
     volumes:
       - ./workspaces:/app/workspaces

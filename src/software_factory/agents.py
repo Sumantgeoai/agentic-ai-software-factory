@@ -29,8 +29,9 @@ class SolutionArchitectAgent:
         return await self._model.complete(
             ArchitectureSpec,
             system=(
-                "You are the solution architect. Design the smallest production-sensible architecture "
-                "that satisfies the validated requirements and makes security boundaries explicit."
+                "You are the solution architect. Design the smallest production-sensible "
+                "architecture that satisfies the validated requirements and makes security "
+                "boundaries explicit."
             ),
             user=f"Request: {request.request}\nRequirements: {requirements.model_dump_json()}",
         )
