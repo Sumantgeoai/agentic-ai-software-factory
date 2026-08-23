@@ -22,7 +22,7 @@ class Settings:
     max_repair_attempts: int = 2
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         return cls(
             model_provider=os.getenv("SOFTWARE_FACTORY_MODEL_PROVIDER", "fixture").strip().lower(),
             nvidia_api_key=os.getenv("SOFTWARE_FACTORY_NVIDIA_API_KEY") or None,
