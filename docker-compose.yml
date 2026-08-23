@@ -1,11 +1,43 @@
 services:
   api:
     build: .
+    init: true
+    restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${SOFTWARE_FACTORY_PORT:-8080}:8080"
     environment:
       SOFTWARE_FACTORY_MODEL_PROVIDER: ${SOFTWARE_FACTORY_MODEL_PROVIDER:-fixture}
       SOFTWARE_FACTORY_NVIDIA_API_KEY: ${SOFTWARE_FACTORY_NVIDIA_API_KEY:-}
+      SOFTWARE_FACTORY_NVIDIA_BASE_URL: ${SOFTWARE_FACTORY_NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      SOFTWARE_FACTORY_NVIDIA_MODEL: ${SOFTWARE_FACTORY_NVIDIA_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
       SOFTWARE_FACTORY_WORKSPACE_ROOT: /app/workspaces
+      SOFTWARE_FACTORY_DATABASE_URL: ${SOFTWARE_FACTORY_DATABASE_URL:-sqlite:////app/data/software_factory.db}
+      SOFTWARE_FACTORY_API_KEY: ${SOFTWARE_FACTORY_API_KEY:-}
+      SOFTWARE_FACTORY_ALLOWED_ORIGINS: ${SOFTWARE_FACTORY_ALLOWED_ORIGINS:-http://localhost:5173}
+      SOFTWARE_FACTORY_MAX_REPAIR_ATTEMPTS: ${SOFTWARE_FACTORY_MAX_REPAIR_ATTEMPTS:-2}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-agentic-ai-software-factory}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
     volumes:
-      - ./workspaces:/app/workspaces
+      - factory-workspaces:/app/workspaces
+      - factory-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  factory-workspaces:
+  factory-data:
