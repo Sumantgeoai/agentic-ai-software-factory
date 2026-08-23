@@ -147,10 +147,12 @@ class FixtureModelGateway:
                     ),
                     WorkItem(
                         id="OPS-1",
-                        title="Document runnable release",
+                        title="Package a runnable release",
                         owner=AgentRole.DEVOPS,
                         depends_on=["QA-1"],
-                        acceptance_criteria=["Runtime instructions are included"],
+                        acceptance_criteria=[
+                            "Runtime dependencies and startup instructions are included"
+                        ],
                     ),
                 ]
             )
@@ -206,12 +208,17 @@ def _fixture_artifacts(system: str) -> ArtifactSet:
         return ArtifactSet(
             files=[
                 GeneratedFile(
+                    path="requirements.txt",
+                    content="fastapi>=0.128,<1\nuvicorn>=0.35,<1\n",
+                ),
+                GeneratedFile(
                     path="README.md",
                     content=(
-                        "# Leave Management\n\nGenerated release candidate. Run with "
-                        "`uvicorn app.main:app --reload`.\n"
+                        "# Leave Management\n\n"
+                        "Install runtime dependencies with `pip install -r requirements.txt`, then "
+                        "start the release with `uvicorn app.main:app --host 127.0.0.1 --port 8000`.\n"
                     ),
-                )
+                ),
             ]
         )
     raise ValueError("Fixture could not identify specialist role")
