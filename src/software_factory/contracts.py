@@ -12,8 +12,12 @@ class AgentRole(StrEnum):
     PRODUCT_OWNER = "product_owner"
     ARCHITECT = "architect"
     PLANNER = "planner"
+    DATABASE = "database"
     BACKEND = "backend"
+    FRONTEND = "frontend"
     QA = "qa"
+    DEVOPS = "devops"
+    SECURITY = "security"
     REVIEWER = "reviewer"
 
 
@@ -73,11 +77,17 @@ class GeneratedFile(BaseModel):
         path = PurePosixPath(value)
         if path.is_absolute() or ".." in path.parts or not path.parts:
             raise ValueError("Generated file path must be a safe relative POSIX path")
+        if path.parts[0] == ".factory":
+            raise ValueError(".factory is reserved for runtime metadata")
         return value
 
 
+class ArtifactSet(BaseModel):
+    files: list[GeneratedFile] = Field(min_length=1, max_length=50)
+
+
 class CodeBundle(BaseModel):
-    files: list[GeneratedFile] = Field(min_length=1, max_length=100)
+    files: list[GeneratedFile] = Field(min_length=1, max_length=150)
     validation_commands: list[Literal["compile", "test"]] = Field(
         default_factory=lambda: ["compile", "test"], min_length=1
     )
@@ -110,10 +120,28 @@ class QualityReport(BaseModel):
     failures: list[str] = Field(default_factory=list)
 
 
+class SecurityFinding(BaseModel):
+    severity: Literal["low", "medium", "high"]
+    rule: str
+    file: str
+    message: str
+
+
+class SecurityReport(BaseModel):
+    passed: bool
+    findings: list[SecurityFinding] = Field(default_factory=list)
+
+
 class ReviewDecision(BaseModel):
     approved: bool
     summary: str
     risks: list[str] = Field(default_factory=list)
+
+
+class ReleaseArtifact(BaseModel):
+    path: str
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    file_count: int = Field(ge=1)
 
 
 class FactoryRun(BaseModel):
@@ -125,6 +153,25 @@ class FactoryRun(BaseModel):
     quality: QualityReport
     review: ReviewDecision
     repair_attempts: int = Field(ge=0)
+
+
+class StoredRun(BaseModel):
+    project_id: UUID
+    status: Literal["running", "completed", "failed"]
+    request: str
+    result: FactoryRun | None = None
+    error: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class AuditEvent(BaseModel):
+    id: int
+    project_id: UUID
+    actor: str
+    event_type: str
+    payload: dict[str, Any]
+    created_at: str
 
 
 class ToolRequest(BaseModel):
