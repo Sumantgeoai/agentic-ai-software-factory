@@ -27,6 +27,7 @@ from .enterprise_fixture import (
     enterprise_requirements,
     enterprise_task_plan,
 )
+from .enterprise_policy import apply_enterprise_artifact_policy, apply_enterprise_bundle_policy
 from .specification import (
     ApplicationSpec,
     BusinessRuleSpec,
@@ -107,9 +108,15 @@ class FixtureModelGateway:
         elif schema is TaskPlan:
             value = enterprise_task_plan() if enterprise else _lightweight_task_plan()
         elif schema is ArtifactSet:
-            value = enterprise_artifacts(system) if enterprise else _fixture_artifacts(system)
+            if enterprise:
+                value = apply_enterprise_artifact_policy(enterprise_artifacts(system), system)
+            else:
+                value = _fixture_artifacts(system)
         elif schema is CodeBundle:
-            value = enterprise_bundle() if enterprise else _leave_management_bundle()
+            if enterprise:
+                value = apply_enterprise_bundle_policy(enterprise_bundle())
+            else:
+                value = _leave_management_bundle()
         else:
             raise TypeError(f"Fixture gateway does not support {schema.__name__}")
         return schema.model_validate(value.model_dump())
