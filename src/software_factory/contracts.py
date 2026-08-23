@@ -88,8 +88,8 @@ class ArtifactSet(BaseModel):
 
 class CodeBundle(BaseModel):
     files: list[GeneratedFile] = Field(min_length=1, max_length=150)
-    validation_commands: list[Literal["python_compile", "python_test"]] = Field(
-        default_factory=lambda: ["python_compile", "python_test"], min_length=1
+    validation_commands: list[Literal["compile", "test"]] = Field(
+        default_factory=lambda: ["compile", "test"], min_length=1
     )
 
 
