@@ -101,8 +101,9 @@ class PlannerAgent:
             system=(
                 "You are the delivery planner. Produce dependency-aware engineering tasks with "
                 "verifiable acceptance criteria. Assign database, backend, frontend, QA and DevOps "
-                "work explicitly when the architecture requires those concerns. Treat the validated "
-                "application specification as the source of truth for roles, routes and business rules."
+                "work explicitly when the architecture requires those concerns. Treat the "
+                "validated application specification as the source of truth for roles, routes, "
+                "and business rules."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
