@@ -83,7 +83,7 @@ class GeneratedFile(BaseModel):
 
 
 class ArtifactSet(BaseModel):
-    files: list[GeneratedFile] = Field(min_length=1, max_length=50)
+    files: list[GeneratedFile] = Field(default_factory=list, max_length=50)
 
 
 class CodeBundle(BaseModel):
