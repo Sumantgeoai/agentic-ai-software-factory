@@ -44,7 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response.headers["X-Correlation-ID"] = generated
             return response
 
-        with correlation_context(correlation_id), tracer.start_as_current_span("http.request") as span:
+        span_context = tracer.start_as_current_span("http.request")
+        with correlation_context(correlation_id), span_context as span:
             span.set_attribute("http.request.method", request.method)
             span.set_attribute("factory.correlation_id", correlation_id)
             try:
