@@ -216,8 +216,9 @@ def _fixture_artifacts(system: str) -> ArtifactSet:
                     content=(
                         "# Leave Management\n\n"
                         "Install runtime dependencies with `pip install -r requirements.txt`, then "
-                        "start the release with `uvicorn app.main:app --host 127.0.0.1 --port 8000`. "
-                        "Open `http://127.0.0.1:8000/` to use the browser UI.\n"
+                        "start the release with `uvicorn app.main:app --host "
+                        "127.0.0.1 --port 8000`. Open `http://127.0.0.1:8000/` "
+                        "to use the browser UI.\n"
                     ),
                 ),
             ]
