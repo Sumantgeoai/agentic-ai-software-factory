@@ -12,6 +12,8 @@ API_PROJECT = GeneratedFile(
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -83,6 +85,41 @@ FRONTEND_PACKAGE = GeneratedFile(
 ''',
 )
 
+FRONTEND_APP = GeneratedFile(
+    path="frontend/src/App.tsx",
+    content='''import type { ReactElement } from "react";
+import { Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { ApplyLeavePage, ApprovalQueuePage, DashboardPage, ForbiddenPage, MyLeavesPage, ReportsPage } from "./pages";
+import { Role, useRole } from "./role";
+
+function RoleRoute({ allowed, children }: { allowed: Role[]; children: ReactElement }) {
+  const { role } = useRole();
+  return allowed.includes(role) ? children : <Navigate to="/forbidden" replace />;
+}
+
+export function App() {
+  const { role, setRole } = useRole();
+  return <main>
+    <header><h1>Leave Management</h1><label>Demo UI role <select value={role} onChange={e => setRole(e.target.value as Role)}><option value="employee">Employee</option><option value="manager">Manager</option><option value="hr">HR</option></select></label></header>
+    <nav>
+      <NavLink to="/">Dashboard</NavLink>{" "}
+      {role === "employee" && <><NavLink to="/leaves">My Leaves</NavLink>{" "}<NavLink to="/leaves/new">Apply Leave</NavLink></>}
+      {role === "manager" && <NavLink to="/approvals">Approvals</NavLink>}
+      {role === "hr" && <NavLink to="/reports">Reports</NavLink>}
+    </nav>
+    <Routes>
+      <Route path="/" element={<DashboardPage />} />
+      <Route path="/leaves" element={<RoleRoute allowed={["employee"]}><MyLeavesPage /></RoleRoute>} />
+      <Route path="/leaves/new" element={<RoleRoute allowed={["employee"]}><ApplyLeavePage /></RoleRoute>} />
+      <Route path="/approvals" element={<RoleRoute allowed={["manager"]}><ApprovalQueuePage /></RoleRoute>} />
+      <Route path="/reports" element={<RoleRoute allowed={["hr"]}><ReportsPage /></RoleRoute>} />
+      <Route path="/forbidden" element={<ForbiddenPage />} />
+    </Routes>
+  </main>;
+}
+''',
+)
+
 FRONTEND_DOCKERFILE = GeneratedFile(
     path="frontend/Dockerfile",
     content='''FROM node:22-alpine AS build
@@ -117,6 +154,7 @@ def test_enterprise_stack_and_backend_authorization_are_present() -> None:
     backend_dockerfile = read("backend/LeaveManagement.Api/Dockerfile")
     assert "net10.0" in project
     assert "Microsoft.AspNetCore.Authentication.JwtBearer" in project
+    assert 'Microsoft.EntityFrameworkCore\" Version=\"10.0.11' in project
     assert "Npgsql.EntityFrameworkCore.PostgreSQL" in project
     assert '"react": "19.2.8"' in package
     assert '"typescript": "7.0.2"' in package
@@ -152,6 +190,7 @@ def test_react_routes_are_role_aware_and_release_is_containerized() -> None:
     assert 'path="/approvals"' in app
     assert 'path="/reports"' in app
     assert "RoleRoute" in app
+    assert "ReactElement" in app
     assert "postgres:16-alpine" in compose
     assert "node:22-alpine" in frontend_dockerfile
     assert "nginx:1.29-alpine" in frontend_dockerfile
@@ -165,6 +204,7 @@ def current_stack_files() -> tuple[GeneratedFile, ...]:
         TEST_PROJECT,
         BACKEND_DOCKERFILE,
         FRONTEND_PACKAGE,
+        FRONTEND_APP,
         FRONTEND_DOCKERFILE,
         STACK_CONTRACT_TEST,
     )
