@@ -11,6 +11,7 @@ from .config import Settings
 from .contracts import (
     AgentRole,
     ArchitectureSpec,
+    ArtifactSet,
     CodeBundle,
     GeneratedFile,
     RequirementSpec,
@@ -74,9 +75,9 @@ class FixtureModelGateway:
     """Deterministic gateway used by tests and zero-credential local demos."""
 
     async def complete(self, schema: type[T], *, system: str, user: str) -> T:
-        del system, user
+        del user
         if schema is RequirementSpec:
-            value = RequirementSpec(
+            value: BaseModel = RequirementSpec(
                 product_name="Leave Management",
                 actors=["employee", "manager", "hr"],
                 functional_requirements=[
@@ -118,20 +119,43 @@ class FixtureModelGateway:
             value = TaskPlan(
                 items=[
                     WorkItem(
-                        id="APP-1",
+                        id="DB-1",
+                        title="Implement leave repository",
+                        owner=AgentRole.DATABASE,
+                        acceptance_criteria=["Repository exposes deterministic CRUD operations"],
+                    ),
+                    WorkItem(
+                        id="API-1",
                         title="Implement leave request domain and API",
                         owner=AgentRole.BACKEND,
+                        depends_on=["DB-1"],
                         acceptance_criteria=["Submit, list and approve endpoints are implemented"],
+                    ),
+                    WorkItem(
+                        id="UI-1",
+                        title="Implement minimal browser UI",
+                        owner=AgentRole.FRONTEND,
+                        depends_on=["API-1"],
+                        acceptance_criteria=["UI can load leave requests"],
                     ),
                     WorkItem(
                         id="QA-1",
                         title="Verify request and approval flow",
                         owner=AgentRole.QA,
-                        depends_on=["APP-1"],
+                        depends_on=["API-1"],
                         acceptance_criteria=["Automated tests pass"],
+                    ),
+                    WorkItem(
+                        id="OPS-1",
+                        title="Document runnable release",
+                        owner=AgentRole.DEVOPS,
+                        depends_on=["QA-1"],
+                        acceptance_criteria=["Runtime instructions are included"],
                     ),
                 ]
             )
+        elif schema is ArtifactSet:
+            value = _fixture_artifacts(system)
         elif schema is CodeBundle:
             value = _leave_management_bundle()
         else:
@@ -139,19 +163,73 @@ class FixtureModelGateway:
         return schema.model_validate(value.model_dump())
 
 
-def _leave_management_bundle() -> CodeBundle:
-    app_source = '''from __future__ import annotations
+def _fixture_artifacts(system: str) -> ArtifactSet:
+    role = system.lower()
+    if "database specialist" in role:
+        return ArtifactSet(
+            files=[
+                GeneratedFile(path="app/__init__.py", content=""),
+                GeneratedFile(
+                    path="app/repository.py",
+                    content=(
+                        "from __future__ import annotations\n\n"
+                        "from typing import Any\n\n"
+                        "_records: dict[int, Any] = {}\n\n"
+                        "def save(record: Any) -> None:\n    _records[record.id] = record\n\n"
+                        "def get(record_id: int) -> Any | None:\n"
+                        "    return _records.get(record_id)\n\n"
+                        "def list_all() -> list[Any]:\n    return list(_records.values())\n"
+                    ),
+                ),
+            ]
+        )
+    if "backend specialist" in role:
+        return ArtifactSet(files=[GeneratedFile(path="app/main.py", content=_app_source())])
+    if "frontend specialist" in role:
+        return ArtifactSet(
+            files=[
+                GeneratedFile(
+                    path="web/index.html",
+                    content=(
+                        "<!doctype html><html><body><main><h1>Leave Management</h1>"
+                        "<button id='refresh'>Refresh</button><pre id='out'></pre>"
+                        "<script>document.getElementById('refresh').onclick=async()=>{const r="
+                        "await fetch('/api/leaves');document.getElementById('out').textContent="
+                        "JSON.stringify(await r.json(),null,2)}</script></main></body></html>"
+                    ),
+                )
+            ]
+        )
+    if "qa specialist" in role:
+        return ArtifactSet(files=[GeneratedFile(path="tests/test_app.py", content=_test_source())])
+    if "devops specialist" in role:
+        return ArtifactSet(
+            files=[
+                GeneratedFile(
+                    path="README.md",
+                    content=(
+                        "# Leave Management\n\nGenerated release candidate. Run with "
+                        "`uvicorn app.main:app --reload`.\n"
+                    ),
+                )
+            ]
+        )
+    raise ValueError("Fixture could not identify specialist role")
+
+
+def _app_source() -> str:
+    return '''from __future__ import annotations
 
 from enum import StrEnum
 from itertools import count
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+
+from app import repository
 
 app = FastAPI(title="Leave Management")
 _ids = count(1)
-_leaves: dict[int, "LeaveRecord"] = {}
 
 
 class LeaveStatus(StrEnum):
@@ -175,31 +253,21 @@ class LeaveRecord(LeaveCreate):
     status: LeaveStatus = LeaveStatus.PENDING
 
 
-@app.get("/", response_class=HTMLResponse)
-def home() -> str:
-    return """<!doctype html><html><body><main><h1>Leave Management</h1>
-    <p>Use the API to submit and review leave requests.</p>
-    <button onclick=\"loadLeaves()\">Refresh</button><pre id=\"out\"></pre>
-    <script>async function loadLeaves(){const r=await fetch('/api/leaves');
-    document.getElementById('out').textContent=JSON.stringify(await r.json(),null,2)}</script>
-    </main></body></html>"""
-
-
 @app.post("/api/leaves", response_model=LeaveRecord, status_code=201)
 def create_leave(payload: LeaveCreate) -> LeaveRecord:
     item = LeaveRecord(id=next(_ids), **payload.model_dump())
-    _leaves[item.id] = item
+    repository.save(item)
     return item
 
 
 @app.get("/api/leaves", response_model=list[LeaveRecord])
 def list_leaves() -> list[LeaveRecord]:
-    return list(_leaves.values())
+    return repository.list_all()
 
 
 @app.patch("/api/leaves/{leave_id}", response_model=LeaveRecord)
 def decide_leave(leave_id: int, payload: LeaveDecision) -> LeaveRecord:
-    item = _leaves.get(leave_id)
+    item = repository.get(leave_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Leave request not found")
     if item.status is not LeaveStatus.PENDING:
@@ -207,10 +275,13 @@ def decide_leave(leave_id: int, payload: LeaveDecision) -> LeaveRecord:
     if payload.status is LeaveStatus.PENDING:
         raise HTTPException(status_code=422, detail="Decision must approve or reject")
     updated = item.model_copy(update={"status": payload.status})
-    _leaves[leave_id] = updated
+    repository.save(updated)
     return updated
 '''
-    test_source = '''from fastapi.testclient import TestClient
+
+
+def _test_source() -> str:
+    return '''from fastapi.testclient import TestClient
 
 from app.main import app
 
@@ -233,18 +304,14 @@ def test_submit_approve_and_list_leave() -> None:
     assert listed.status_code == 200
     assert any(item["id"] == leave_id for item in listed.json())
 '''
-    return CodeBundle(
-        files=[
-            GeneratedFile(path="app/__init__.py", content=""),
-            GeneratedFile(path="app/main.py", content=app_source),
-            GeneratedFile(path="tests/test_app.py", content=test_source),
-            GeneratedFile(
-                path="README.md",
-                content=(
-                    "# Leave Management\n\nGenerated release candidate. Run with "
-                    "`uvicorn app.main:app --reload`.\n"
-                ),
-            ),
-        ],
-        validation_commands=["compile", "test"],
-    )
+
+
+def _leave_management_bundle() -> CodeBundle:
+    artifacts = [
+        _fixture_artifacts("database specialist"),
+        _fixture_artifacts("backend specialist"),
+        _fixture_artifacts("frontend specialist"),
+        _fixture_artifacts("qa specialist"),
+        _fixture_artifacts("devops specialist"),
+    ]
+    return CodeBundle(files=[file for artifact in artifacts for file in artifact.files])

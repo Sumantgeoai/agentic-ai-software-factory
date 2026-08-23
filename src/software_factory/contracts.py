@@ -83,7 +83,7 @@ class GeneratedFile(BaseModel):
 
 
 class ArtifactSet(BaseModel):
-    files: list[GeneratedFile] = Field(min_length=1, max_length=50)
+    files: list[GeneratedFile] = Field(default_factory=list, max_length=50)
 
 
 class CodeBundle(BaseModel):
@@ -151,7 +151,9 @@ class FactoryRun(BaseModel):
     plan: TaskPlan
     execution: ExecutionEvidence
     quality: QualityReport
+    security: SecurityReport
     review: ReviewDecision
+    release: ReleaseArtifact | None = None
     repair_attempts: int = Field(ge=0)
 
 

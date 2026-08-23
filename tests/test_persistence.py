@@ -15,5 +15,5 @@ def test_run_store_persists_status_and_audit(tmp_path: Path) -> None:
     events = store.list_events(project_id)
 
     assert run is not None and run.status == "running"
-    assert len(events) == 1
-    assert events[0].payload == {"task_count": 3}
+    assert [event.event_type for event in events] == ["run.started", "plan.created"]
+    assert events[1].payload == {"task_count": 3}

@@ -16,7 +16,7 @@ from sqlalchemy import (
     create_engine,
     select,
 )
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from .contracts import AuditEvent, FactoryRun, StoredRun
 
@@ -75,8 +75,17 @@ class DatabaseRunStore:
                     updated_at=now,
                 )
             )
+            self._append_event(
+                connection,
+                project_id,
+                "service",
+                "run.started",
+                {"request_length": len(request)},
+                now=now,
+            )
 
     def complete_run(self, result: FactoryRun) -> None:
+        now = datetime.now(UTC)
         with self.engine.begin() as connection:
             connection.execute(
                 runs.update()
@@ -84,16 +93,38 @@ class DatabaseRunStore:
                 .values(
                     status="completed",
                     result_json=result.model_dump_json(),
-                    updated_at=datetime.now(UTC),
+                    error=None,
+                    updated_at=now,
                 )
+            )
+            self._append_event(
+                connection,
+                result.project_id,
+                "service",
+                "run.completed",
+                {
+                    "approved": result.review.approved,
+                    "release_created": result.release is not None,
+                    "repair_attempts": result.repair_attempts,
+                },
+                now=now,
             )
 
     def fail_run(self, project_id: UUID, error: str) -> None:
+        now = datetime.now(UTC)
         with self.engine.begin() as connection:
             connection.execute(
                 runs.update()
                 .where(runs.c.project_id == str(project_id))
-                .values(status="failed", error=error, updated_at=datetime.now(UTC))
+                .values(status="failed", error=error, updated_at=now)
+            )
+            self._append_event(
+                connection,
+                project_id,
+                "service",
+                "run.failed",
+                {"error": error[:2_000]},
+                now=now,
             )
 
     def append_event(
@@ -104,15 +135,27 @@ class DatabaseRunStore:
         payload: dict[str, object] | None = None,
     ) -> None:
         with self.engine.begin() as connection:
-            connection.execute(
-                audit_events.insert().values(
-                    project_id=str(project_id),
-                    actor=actor,
-                    event_type=event_type,
-                    payload_json=json.dumps(payload or {}, separators=(",", ":"), default=str),
-                    created_at=datetime.now(UTC),
-                )
+            self._append_event(connection, project_id, actor, event_type, payload or {})
+
+    @staticmethod
+    def _append_event(
+        connection: Connection,
+        project_id: UUID | str,
+        actor: str,
+        event_type: str,
+        payload: dict[str, object],
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        connection.execute(
+            audit_events.insert().values(
+                project_id=str(project_id),
+                actor=actor,
+                event_type=event_type,
+                payload_json=json.dumps(payload, separators=(",", ":"), default=str),
+                created_at=now or datetime.now(UTC),
             )
+        )
 
     def get_run(self, project_id: UUID) -> StoredRun | None:
         with self.engine.connect() as connection:
