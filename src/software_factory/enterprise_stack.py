@@ -72,7 +72,7 @@ FRONTEND_PACKAGE = GeneratedFile(
   "dependencies": {
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-router-dom": "6.30.6"
+    "react-router-dom": "7.18.2"
   },
   "devDependencies": {
     "@types/react": "19.2.18",
@@ -157,6 +157,7 @@ def test_enterprise_stack_and_backend_authorization_are_present() -> None:
     assert 'Microsoft.EntityFrameworkCore\" Version=\"10.0.11' in project
     assert "Npgsql.EntityFrameworkCore.PostgreSQL" in project
     assert '"react": "19.2.8"' in package
+    assert '"react-router-dom": "7.18.2"' in package
     assert '"typescript": "7.0.2"' in package
     assert "mcr.microsoft.com/dotnet/sdk:10.0" in backend_dockerfile
     assert 'RequireAuthorization("EmployeeOnly")' in program

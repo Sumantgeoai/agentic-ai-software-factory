@@ -57,6 +57,9 @@ jobs:
       - name: Install generated React dependencies
         working-directory: .generated-enterprise/release-workspace/frontend
         run: npm install
+      - name: Audit generated React dependencies
+        working-directory: .generated-enterprise/release-workspace/frontend
+        run: npm audit --audit-level=moderate
       - name: Build generated React application
         working-directory: .generated-enterprise/release-workspace/frontend
         run: npm run build
