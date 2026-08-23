@@ -12,16 +12,25 @@ _BACKEND_BUILD_POLICY = GeneratedFile(
 ''',
 )
 
+_QA_USINGS = GeneratedFile(
+    path="backend/LeaveManagement.Tests/Usings.cs",
+    content="global using Xunit;\n",
+)
+
 
 def apply_enterprise_artifact_policy(artifacts: ArtifactSet, system: str) -> ArtifactSet:
     files = list(artifacts.files)
-    if "backend specialist" in system.lower():
+    role = system.lower()
+    if "backend specialist" in role:
         files.append(_BACKEND_BUILD_POLICY)
+    if "qa specialist" in role:
+        files.append(_QA_USINGS)
     return ArtifactSet(files=files)
 
 
 def apply_enterprise_bundle_policy(bundle: CodeBundle) -> CodeBundle:
     files = list(bundle.files)
-    if not any(file.path == _BACKEND_BUILD_POLICY.path for file in files):
-        files.append(_BACKEND_BUILD_POLICY)
+    for required in (_BACKEND_BUILD_POLICY, _QA_USINGS):
+        if not any(file.path == required.path for file in files):
+            files.append(required)
     return CodeBundle(files=files)
