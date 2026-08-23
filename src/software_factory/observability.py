@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from threading import Lock
-from typing import Iterator
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
