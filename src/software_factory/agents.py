@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-from .contracts import ArchitectureSpec, CodeBundle, ProjectRequest, RequirementSpec, TaskPlan
+from .contracts import (
+    ArchitectureSpec,
+    CodeBundle,
+    CommandEvidence,
+    ExecutionEvidence,
+    ProjectRequest,
+    QualityReport,
+    RequirementSpec,
+    ReviewDecision,
+    TaskPlan,
+)
 from .model_gateway import StructuredModel
 
 
@@ -79,4 +89,58 @@ class BackendAgent:
                 f"Requirements: {requirements.model_dump_json()}\n"
                 f"Architecture: {architecture.model_dump_json()}\nPlan: {plan.model_dump_json()}"
             ),
+        )
+
+    async def repair(
+        self,
+        requirements: RequirementSpec,
+        architecture: ArchitectureSpec,
+        plan: TaskPlan,
+        previous: CodeBundle,
+        failure: CommandEvidence,
+    ) -> CodeBundle:
+        return await self._model.complete(
+            CodeBundle,
+            system=(
+                "You are repairing a failed implementation. Use the deterministic build/test "
+                "evidence as the source of truth. Return a complete corrected file bundle."
+            ),
+            user=(
+                f"Requirements: {requirements.model_dump_json()}\n"
+                f"Architecture: {architecture.model_dump_json()}\n"
+                f"Plan: {plan.model_dump_json()}\n"
+                f"Previous bundle: {previous.model_dump_json()}\n"
+                f"Failure: {failure.model_dump_json()}"
+            ),
+        )
+
+
+class QAAgent:
+    async def run(self, execution: ExecutionEvidence) -> QualityReport:
+        failures = [
+            command.stderr or command.stdout or f"{command.command} failed"
+            for command in execution.commands
+            if not command.passed
+        ]
+        return QualityReport(
+            passed=execution.passed,
+            summary=(
+                "Configured deterministic quality gates passed."
+                if execution.passed
+                else "One or more deterministic quality gates failed."
+            ),
+            failures=failures,
+        )
+
+
+class ReviewerAgent:
+    async def run(self, quality: QualityReport) -> ReviewDecision:
+        return ReviewDecision(
+            approved=quality.passed,
+            summary=(
+                "Release candidate approved from verified quality evidence."
+                if quality.passed
+                else "Release candidate rejected after bounded repair attempts."
+            ),
+            risks=[] if quality.passed else quality.failures,
         )

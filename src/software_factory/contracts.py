@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -77,8 +77,10 @@ class GeneratedFile(BaseModel):
 
 
 class CodeBundle(BaseModel):
-    files: list[GeneratedFile]
-    validation_commands: list[str] = Field(default_factory=lambda: ["compile", "test"])
+    files: list[GeneratedFile] = Field(min_length=1, max_length=100)
+    validation_commands: list[Literal["compile", "test"]] = Field(
+        default_factory=lambda: ["compile", "test"], min_length=1
+    )
 
 
 class CommandEvidence(BaseModel):
@@ -102,6 +104,12 @@ class ExecutionEvidence(BaseModel):
         return bool(self.commands) and all(command.passed for command in self.commands)
 
 
+class QualityReport(BaseModel):
+    passed: bool
+    summary: str
+    failures: list[str] = Field(default_factory=list)
+
+
 class ReviewDecision(BaseModel):
     approved: bool
     summary: str
@@ -114,7 +122,9 @@ class FactoryRun(BaseModel):
     architecture: ArchitectureSpec
     plan: TaskPlan
     execution: ExecutionEvidence
+    quality: QualityReport
     review: ReviewDecision
+    repair_attempts: int = Field(ge=0)
 
 
 class ToolRequest(BaseModel):

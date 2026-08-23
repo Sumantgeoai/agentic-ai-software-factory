@@ -19,6 +19,7 @@ class Settings:
     allowed_origins: tuple[str, ...] = ("http://localhost:5173",)
     model_timeout_seconds: float = 90.0
     command_timeout_seconds: float = 60.0
+    max_repair_attempts: int = 2
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -39,4 +40,5 @@ class Settings:
             command_timeout_seconds=float(
                 os.getenv("SOFTWARE_FACTORY_COMMAND_TIMEOUT_SECONDS", "60")
             ),
+            max_repair_attempts=int(os.getenv("SOFTWARE_FACTORY_MAX_REPAIR_ATTEMPTS", "2")),
         )

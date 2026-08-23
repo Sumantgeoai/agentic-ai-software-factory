@@ -107,7 +107,9 @@ class WorkspaceRuntime:
             "stderr": stderr.decode("utf-8", errors="replace")[-20_000:],
         }
 
-    async def materialize(self, project_id: str, bundle: CodeBundle) -> ExecutionEvidence:
+    async def materialize(
+        self, project_id: str, bundle: CodeBundle, *, generation: int = 0
+    ) -> ExecutionEvidence:
         files_written: list[str] = []
         for index, file in enumerate(bundle.files):
             result = await self.registry.execute(
@@ -118,7 +120,7 @@ class WorkspaceRuntime:
                         "path": file.path,
                         "content": file.content,
                     },
-                    idempotency_key=f"{project_id}:write:{index}:{file.path}",
+                    idempotency_key=f"{project_id}:g{generation}:write:{index}:{file.path}",
                 )
             )
             if not result.success:
@@ -131,7 +133,9 @@ class WorkspaceRuntime:
                 ToolRequest(
                     name="workspace.run_validation",
                     arguments={"project_id": project_id, "command": command_name},
-                    idempotency_key=f"{project_id}:validate:{index}:{command_name}",
+                    idempotency_key=(
+                        f"{project_id}:g{generation}:validate:{index}:{command_name}"
+                    ),
                 )
             )
             if not result.success:

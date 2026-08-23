@@ -1,13 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
-from .agents import BackendAgent, PlannerAgent, ProductOwnerAgent, SolutionArchitectAgent
+from .agents import (
+    BackendAgent,
+    PlannerAgent,
+    ProductOwnerAgent,
+    QAAgent,
+    ReviewerAgent,
+    SolutionArchitectAgent,
+)
 from .contracts import (
     ArchitectureSpec,
     CodeBundle,
     ExecutionEvidence,
     ProjectRequest,
+    QualityReport,
     RequirementSpec,
     ReviewDecision,
     TaskPlan,
@@ -23,7 +31,10 @@ class WorkflowState(TypedDict, total=False):
     plan: TaskPlan
     bundle: CodeBundle
     execution: ExecutionEvidence
+    quality: QualityReport
     review: ReviewDecision
+    repair_attempts: int
+    max_repair_attempts: int
 
 
 class WorkflowNodes:
@@ -34,12 +45,16 @@ class WorkflowNodes:
         architect: SolutionArchitectAgent,
         planner: PlannerAgent,
         backend: BackendAgent,
+        qa: QAAgent,
+        reviewer: ReviewerAgent,
         runtime: WorkspaceRuntime,
     ) -> None:
         self.product_owner = product_owner
         self.architect = architect
         self.planner = planner
         self.backend = backend
+        self.qa = qa
+        self.reviewer = reviewer
         self.runtime = runtime
 
     async def product_owner_node(self, state: WorkflowState) -> dict[str, Any]:
@@ -62,24 +77,37 @@ class WorkflowNodes:
 
     async def execute_node(self, state: WorkflowState) -> dict[str, Any]:
         return {
-            "execution": await self.runtime.materialize(state["project_id"], state["bundle"])
+            "execution": await self.runtime.materialize(
+                state["project_id"],
+                state["bundle"],
+                generation=state.get("repair_attempts", 0),
+            )
         }
 
+    async def qa_node(self, state: WorkflowState) -> dict[str, Any]:
+        return {"quality": await self.qa.run(state["execution"])}
+
+    async def repair_node(self, state: WorkflowState) -> dict[str, Any]:
+        failure = next(command for command in state["execution"].commands if not command.passed)
+        bundle = await self.backend.repair(
+            state["requirements"],
+            state["architecture"],
+            state["plan"],
+            state["bundle"],
+            failure,
+        )
+        return {"bundle": bundle, "repair_attempts": state.get("repair_attempts", 0) + 1}
+
     async def review_node(self, state: WorkflowState) -> dict[str, Any]:
-        execution = state["execution"]
-        if execution.passed:
-            decision = ReviewDecision(
-                approved=True,
-                summary="Release candidate passed the configured deterministic quality gates.",
-            )
-        else:
-            failed = next(command for command in execution.commands if not command.passed)
-            decision = ReviewDecision(
-                approved=False,
-                summary=f"Release candidate failed validation command: {failed.command}.",
-                risks=[failed.stderr or failed.stdout or "Validation command failed"],
-            )
-        return {"review": decision}
+        return {"review": await self.reviewer.run(state["quality"])}
+
+    @staticmethod
+    def route_after_qa(state: WorkflowState) -> Literal["repair", "review"]:
+        if state["quality"].passed:
+            return "review"
+        if state.get("repair_attempts", 0) < state["max_repair_attempts"]:
+            return "repair"
+        return "review"
 
 
 class SequentialWorkflow:
@@ -93,10 +121,17 @@ class SequentialWorkflow:
             self.nodes.architect_node,
             self.nodes.planner_node,
             self.nodes.backend_node,
-            self.nodes.execute_node,
-            self.nodes.review_node,
         ):
             current.update(await node(current))
+
+        while True:
+            current.update(await self.nodes.execute_node(current))
+            current.update(await self.nodes.qa_node(current))
+            if self.nodes.route_after_qa(current) == "review":
+                break
+            current.update(await self.nodes.repair_node(current))
+
+        current.update(await self.nodes.review_node(current))
         return current  # type: ignore[return-value]
 
 
@@ -112,12 +147,20 @@ def build_workflow(nodes: WorkflowNodes):  # type: ignore[no-untyped-def]
     builder.add_node("planner", nodes.planner_node)
     builder.add_node("backend", nodes.backend_node)
     builder.add_node("execute", nodes.execute_node)
+    builder.add_node("qa", nodes.qa_node)
+    builder.add_node("repair", nodes.repair_node)
     builder.add_node("review", nodes.review_node)
     builder.add_edge(START, "product_owner")
     builder.add_edge("product_owner", "architect")
     builder.add_edge("architect", "planner")
     builder.add_edge("planner", "backend")
     builder.add_edge("backend", "execute")
-    builder.add_edge("execute", "review")
+    builder.add_edge("execute", "qa")
+    builder.add_conditional_edges(
+        "qa",
+        nodes.route_after_qa,
+        {"repair": "repair", "review": "review"},
+    )
+    builder.add_edge("repair", "execute")
     builder.add_edge("review", END)
     return builder.compile()

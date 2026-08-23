@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from .agents import BackendAgent, PlannerAgent, ProductOwnerAgent, SolutionArchitectAgent
+from .agents import (
+    BackendAgent,
+    PlannerAgent,
+    ProductOwnerAgent,
+    QAAgent,
+    ReviewerAgent,
+    SolutionArchitectAgent,
+)
 from .config import Settings
 from .contracts import FactoryRun, ProjectRequest
 from .model_gateway import FixtureModelGateway, NvidiaNimGateway, StructuredModel
@@ -24,6 +31,8 @@ class SoftwareFactoryService:
             architect=SolutionArchitectAgent(self.model),
             planner=PlannerAgent(self.model),
             backend=BackendAgent(self.model),
+            qa=QAAgent(),
+            reviewer=ReviewerAgent(),
             runtime=runtime,
         )
         self.workflow = build_workflow(self.nodes)
@@ -39,7 +48,12 @@ class SoftwareFactoryService:
     async def run(self, request: ProjectRequest) -> FactoryRun:
         project_id = uuid4()
         state = await self.workflow.ainvoke(
-            {"project_id": str(project_id), "request": request}
+            {
+                "project_id": str(project_id),
+                "request": request,
+                "repair_attempts": 0,
+                "max_repair_attempts": self.settings.max_repair_attempts,
+            }
         )
         return FactoryRun(
             project_id=project_id,
@@ -47,5 +61,7 @@ class SoftwareFactoryService:
             architecture=state["architecture"],
             plan=state["plan"],
             execution=state["execution"],
+            quality=state["quality"],
             review=state["review"],
+            repair_attempts=state.get("repair_attempts", 0),
         )
