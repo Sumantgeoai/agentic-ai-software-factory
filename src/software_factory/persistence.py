@@ -63,8 +63,11 @@ class DatabaseRunStore:
     def initialize(self) -> None:
         metadata.create_all(self.engine)
 
-    def start_run(self, project_id: UUID, request: str) -> None:
+    def start_run(self, project_id: UUID, request: str, correlation_id: str | None = None) -> None:
         now = datetime.now(UTC)
+        payload: dict[str, object] = {"request_length": len(request)}
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
         with self.engine.begin() as connection:
             connection.execute(
                 runs.insert().values(
@@ -80,12 +83,19 @@ class DatabaseRunStore:
                 project_id,
                 "service",
                 "run.started",
-                {"request_length": len(request)},
+                payload,
                 now=now,
             )
 
-    def complete_run(self, result: FactoryRun) -> None:
+    def complete_run(self, result: FactoryRun, correlation_id: str | None = None) -> None:
         now = datetime.now(UTC)
+        payload: dict[str, object] = {
+            "approved": result.review.approved,
+            "release_created": result.release is not None,
+            "repair_attempts": result.repair_attempts,
+        }
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
         with self.engine.begin() as connection:
             connection.execute(
                 runs.update()
@@ -102,16 +112,20 @@ class DatabaseRunStore:
                 result.project_id,
                 "service",
                 "run.completed",
-                {
-                    "approved": result.review.approved,
-                    "release_created": result.release is not None,
-                    "repair_attempts": result.repair_attempts,
-                },
+                payload,
                 now=now,
             )
 
-    def fail_run(self, project_id: UUID, error: str) -> None:
+    def fail_run(
+        self,
+        project_id: UUID,
+        error: str,
+        correlation_id: str | None = None,
+    ) -> None:
         now = datetime.now(UTC)
+        payload: dict[str, object] = {"error": error[:2_000]}
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
         with self.engine.begin() as connection:
             connection.execute(
                 runs.update()
@@ -123,7 +137,7 @@ class DatabaseRunStore:
                 project_id,
                 "service",
                 "run.failed",
-                {"error": error[:2_000]},
+                payload,
                 now=now,
             )
 
