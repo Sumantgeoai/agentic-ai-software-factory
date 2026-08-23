@@ -151,9 +151,7 @@ class FactoryRun(BaseModel):
     plan: TaskPlan
     execution: ExecutionEvidence
     quality: QualityReport
-    security: SecurityReport
     review: ReviewDecision
-    release: ReleaseArtifact | None = None
     repair_attempts: int = Field(ge=0)
 
 
