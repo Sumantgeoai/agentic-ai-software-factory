@@ -12,6 +12,7 @@ from .enterprise_stack import (
     BACKEND_DOCKERFILE,
     FRONTEND_DOCKERFILE,
     FRONTEND_PACKAGE,
+    STACK_CONTRACT_TEST,
     TEST_PROJECT,
 )
 
@@ -54,7 +55,12 @@ def apply_enterprise_artifact_policy(artifacts: ArtifactSet, system: str) -> Art
     if "frontend specialist" in role:
         _replace(files, FRONTEND_PACKAGE)
     if "qa specialist" in role:
-        for required in (_QA_USINGS, TEST_PROJECT, MANAGER_SCOPE_TESTS):
+        for required in (
+            _QA_USINGS,
+            TEST_PROJECT,
+            MANAGER_SCOPE_TESTS,
+            STACK_CONTRACT_TEST,
+        ):
             _replace(files, required)
     if "devops specialist" in role:
         for required in (BACKEND_DOCKERFILE, FRONTEND_DOCKERFILE):
@@ -72,6 +78,7 @@ def apply_enterprise_bundle_policy(bundle: CodeBundle) -> CodeBundle:
         BACKEND_DOCKERFILE,
         FRONTEND_PACKAGE,
         FRONTEND_DOCKERFILE,
+        STACK_CONTRACT_TEST,
         MANAGER_SCOPE_DOMAIN,
         LEAVE_SERVICE,
         PROGRAM,
