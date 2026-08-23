@@ -21,8 +21,14 @@ class AgentRole(StrEnum):
     REVIEWER = "reviewer"
 
 
+class TargetProfile(StrEnum):
+    LIGHTWEIGHT_PYTHON = "lightweight-python"
+    ENTERPRISE_DOTNET_REACT = "enterprise-dotnet-react"
+
+
 class ProjectRequest(BaseModel):
     request: str = Field(min_length=20, max_length=8_000)
+    target_profile: TargetProfile = TargetProfile.LIGHTWEIGHT_PYTHON
 
 
 class RequirementSpec(BaseModel):
