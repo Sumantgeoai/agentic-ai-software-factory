@@ -1,0 +1,45 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #14202b;
+  background: #f4f6f8;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, textarea { font: inherit; }
+.shell { max-width: 1040px; margin: 0 auto; padding: 56px 24px 80px; }
+header { margin-bottom: 28px; }
+h1 { font-size: clamp(2.4rem, 6vw, 4.7rem); letter-spacing: -0.055em; margin: 6px 0 14px; }
+h2 { margin: 4px 0 0; }
+h3 { margin-top: 0; }
+p { line-height: 1.6; color: #5c6873; }
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 800; color: #596673; }
+.request-card, article, .error { background: white; border: 1px solid #dfe4e8; border-radius: 16px; box-shadow: 0 10px 30px rgba(21, 32, 43, .05); }
+.request-card { padding: 22px; display: grid; gap: 12px; }
+label { font-weight: 700; }
+textarea { width: 100%; resize: vertical; padding: 14px; border-radius: 10px; border: 1px solid #cbd3da; line-height: 1.5; }
+button { justify-self: start; border: 0; border-radius: 9px; padding: 11px 16px; font-weight: 750; cursor: pointer; background: #14202b; color: white; }
+button:disabled { opacity: .5; cursor: wait; }
+.results { margin-top: 26px; display: grid; gap: 18px; }
+.status-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.pill { border-radius: 999px; padding: 8px 11px; font-size: .75rem; font-weight: 900; letter-spacing: .08em; }
+.pass { background: #eaf7ef; color: #17633a; }
+.fail { background: #fff0ee; color: #9c2d20; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+article { padding: 22px; }
+dl { display: grid; grid-template-columns: 90px 1fr; gap: 8px; font-size: .9rem; }
+dt { font-weight: 800; }
+dd { margin: 0; color: #596673; }
+.gate, .task { display: grid; grid-template-columns: 100px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid #edf0f2; }
+.tasks { display: grid; }
+.task small { color: #68747e; }
+code { display: block; overflow-wrap: anywhere; background: #f5f7f9; padding: 12px; border-radius: 8px; }
+.error { padding: 16px; margin-top: 20px; color: #9c2d20; }
+
+@media (max-width: 720px) {
+  .grid { grid-template-columns: 1fr; }
+  .status-row { align-items: flex-start; }
+  .task { grid-template-columns: 70px 1fr; }
+  .task small { grid-column: 2; }
+}
