@@ -50,13 +50,20 @@ def test_run_and_audit_endpoints_preserve_correlation_id(tmp_path: Path) -> None
 
     assert created.status_code == 200
     assert created.headers["x-correlation-id"] == "api-test-001"
-    project_id = created.json()["project_id"]
+    created_payload = created.json()
+    project_id = created_payload["project_id"]
+    assert "workspace" not in created_payload["execution"]
+    assert "path" not in created_payload["release"]
 
     stored = client.get(f"/api/v1/runs/{project_id}", headers=headers)
     audit = client.get(f"/api/v1/runs/{project_id}/audit", headers=headers)
 
     assert stored.status_code == 200
-    assert stored.json()["status"] == "completed"
+    stored_payload = stored.json()
+    assert stored_payload["status"] == "completed"
+    assert stored_payload["result"] is not None
+    assert "workspace" not in stored_payload["result"]["execution"]
+    assert "path" not in stored_payload["result"]["release"]
     assert audit.status_code == 200
     events = audit.json()
     assert {event["event_type"] for event in events} >= {
