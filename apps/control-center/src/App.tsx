@@ -11,7 +11,9 @@ type FactoryRun = {
     files_written: string[];
     commands: { command: string; return_code: number }[];
   };
+  quality: { passed: boolean; summary: string; failures: string[] };
   review: { approved: boolean; summary: string; risks: string[] };
+  repair_attempts: number;
 };
 
 const defaultRequest =
@@ -96,6 +98,7 @@ export default function App() {
                 </div>
               ))}
               <small>{result.review.summary}</small>
+              <p>{result.repair_attempts} autonomous repair attempt(s)</p>
             </article>
           </div>
 

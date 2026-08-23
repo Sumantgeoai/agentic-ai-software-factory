@@ -8,6 +8,7 @@ A governed multi-agent runtime that turns a product request into an implementati
 - LangGraph workflow with typed project state
 - NVIDIA NIM/OpenAI-compatible model gateway, defaulting to Nemotron 3.5 Lightning
 - deterministic fixture gateway for local development and CI
+- bounded autonomous repair loop driven by build/test evidence
 - sandboxed workspace writes with path validation and idempotent tool calls
 - named command allow-list instead of arbitrary shell access
 - MCP v2 server boundary for governed workspace tools
