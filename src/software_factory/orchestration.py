@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
@@ -36,6 +37,7 @@ from .security import SecurityAgent
 
 class WorkflowState(TypedDict, total=False):
     project_id: str
+    correlation_id: str
     request: ProjectRequest
     requirements: RequirementSpec
     architecture: ArchitectureSpec
@@ -89,18 +91,28 @@ class WorkflowNodes:
         self.release_manager = release_manager
         self.run_store = run_store
 
-    def _audit(
+    async def _audit(
         self,
         state: WorkflowState,
         actor: str,
         event_type: str,
         payload: dict[str, object] | None = None,
     ) -> None:
-        self.run_store.append_event(state["project_id"], actor, event_type, payload or {})
+        event_payload = dict(payload or {})
+        correlation_id = state.get("correlation_id")
+        if correlation_id:
+            event_payload["correlation_id"] = correlation_id
+        await asyncio.to_thread(
+            self.run_store.append_event,
+            state["project_id"],
+            actor,
+            event_type,
+            event_payload,
+        )
 
     async def product_owner_node(self, state: WorkflowState) -> dict[str, Any]:
         requirements = await self.product_owner.run(state["request"])
-        self._audit(
+        await self._audit(
             state,
             "product_owner",
             "requirements.completed",
@@ -110,7 +122,7 @@ class WorkflowNodes:
 
     async def architect_node(self, state: WorkflowState) -> dict[str, Any]:
         architecture = await self.architect.run(state["request"], state["requirements"])
-        self._audit(
+        await self._audit(
             state,
             "architect",
             "architecture.completed",
@@ -120,40 +132,60 @@ class WorkflowNodes:
 
     async def planner_node(self, state: WorkflowState) -> dict[str, Any]:
         plan = await self.planner.run(state["requirements"], state["architecture"])
-        self._audit(state, "planner", "plan.completed", {"task_count": len(plan.items)})
+        await self._audit(state, "planner", "plan.completed", {"task_count": len(plan.items)})
         return {"plan": plan}
 
     async def database_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.database.run(
             state["requirements"], state["architecture"], state["plan"]
         )
-        self._audit(state, "database", "artifacts.completed", {"files": len(artifacts.files)})
+        await self._audit(
+            state,
+            "database",
+            "artifacts.completed",
+            {"files": len(artifacts.files)},
+        )
         return {"database_artifacts": artifacts}
 
     async def backend_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.backend.run(
             state["requirements"], state["architecture"], state["plan"]
         )
-        self._audit(state, "backend", "artifacts.completed", {"files": len(artifacts.files)})
+        await self._audit(
+            state,
+            "backend",
+            "artifacts.completed",
+            {"files": len(artifacts.files)},
+        )
         return {"backend_artifacts": artifacts}
 
     async def frontend_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.frontend.run(
             state["requirements"], state["architecture"], state["plan"]
         )
-        self._audit(state, "frontend", "artifacts.completed", {"files": len(artifacts.files)})
+        await self._audit(
+            state,
+            "frontend",
+            "artifacts.completed",
+            {"files": len(artifacts.files)},
+        )
         return {"frontend_artifacts": artifacts}
 
     async def qa_artifacts_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.qa.run(state["requirements"], state["architecture"], state["plan"])
-        self._audit(state, "qa", "artifacts.completed", {"files": len(artifacts.files)})
+        await self._audit(state, "qa", "artifacts.completed", {"files": len(artifacts.files)})
         return {"qa_artifacts": artifacts}
 
     async def devops_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.devops.run(
             state["requirements"], state["architecture"], state["plan"]
         )
-        self._audit(state, "devops", "artifacts.completed", {"files": len(artifacts.files)})
+        await self._audit(
+            state,
+            "devops",
+            "artifacts.completed",
+            {"files": len(artifacts.files)},
+        )
         return {"devops_artifacts": artifacts}
 
     async def assemble_node(self, state: WorkflowState) -> dict[str, Any]:
@@ -166,12 +198,17 @@ class WorkflowNodes:
                 state["devops_artifacts"],
             ]
         )
-        self._audit(state, "orchestrator", "artifacts.assembled", {"files": len(bundle.files)})
+        await self._audit(
+            state,
+            "orchestrator",
+            "artifacts.assembled",
+            {"files": len(bundle.files)},
+        )
         return {"bundle": bundle}
 
     async def security_node(self, state: WorkflowState) -> dict[str, Any]:
         report = await self.security.run(state["bundle"])
-        self._audit(
+        await self._audit(
             state,
             "security",
             "security.completed",
@@ -206,7 +243,7 @@ class WorkflowNodes:
             state["bundle"],
             generation=state.get("repair_attempts", 0),
         )
-        self._audit(
+        await self._audit(
             state,
             "runtime",
             "validation.executed",
@@ -216,7 +253,7 @@ class WorkflowNodes:
 
     async def quality_node(self, state: WorkflowState) -> dict[str, Any]:
         quality = await self.quality_gate.run(state["execution"])
-        self._audit(state, "qa", "quality.completed", {"passed": quality.passed})
+        await self._audit(state, "qa", "quality.completed", {"passed": quality.passed})
         return {"quality": quality}
 
     async def repair_node(self, state: WorkflowState) -> dict[str, Any]:
@@ -229,19 +266,19 @@ class WorkflowNodes:
             failure,
         )
         attempts = state.get("repair_attempts", 0) + 1
-        self._audit(state, "backend", "repair.completed", {"attempt": attempts})
+        await self._audit(state, "backend", "repair.completed", {"attempt": attempts})
         return {"bundle": bundle, "repair_attempts": attempts}
 
     async def review_node(self, state: WorkflowState) -> dict[str, Any]:
         review = await self.reviewer.run(state["quality"], state["security"])
-        self._audit(state, "reviewer", "review.completed", {"approved": review.approved})
+        await self._audit(state, "reviewer", "review.completed", {"approved": review.approved})
         return {"review": review}
 
     async def release_node(self, state: WorkflowState) -> dict[str, Any]:
         release = self.release_manager.create(
             Path(state["execution"].workspace), state["execution"].files_written
         )
-        self._audit(
+        await self._audit(
             state,
             "release",
             "release.created",
