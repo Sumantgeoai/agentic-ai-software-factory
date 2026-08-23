@@ -130,6 +130,7 @@ def test_enterprise_stack_and_backend_authorization_are_present() -> None:
 
 def test_critical_business_rules_are_backend_enforced() -> None:
     domain = read("backend/LeaveManagement.Api/Domain/LeaveRequest.cs")
+    manager_scope = read("backend/LeaveManagement.Api/Domain/ManagerScope.cs")
     service = read("backend/LeaveManagement.Api/Application/LeaveService.cs")
     for code in (
         "LEAVE_INVALID_DATE_RANGE",
@@ -139,7 +140,8 @@ def test_critical_business_rules_are_backend_enforced() -> None:
     ):
         assert code in domain
     assert "LEAVE_OVERLAP" in service
-    assert "LEAVE_OUTSIDE_MANAGER_SCOPE" in service
+    assert "ManagerScope.EnsureCanManage" in service
+    assert "LEAVE_OUTSIDE_MANAGER_SCOPE" in manager_scope
 
 
 def test_react_routes_are_role_aware_and_release_is_containerized() -> None:
