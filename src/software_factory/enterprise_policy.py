@@ -10,6 +10,7 @@ from .enterprise_authorization import (
 from .enterprise_stack import (
     API_PROJECT,
     BACKEND_DOCKERFILE,
+    FRONTEND_APP,
     FRONTEND_DOCKERFILE,
     FRONTEND_PACKAGE,
     STACK_CONTRACT_TEST,
@@ -53,7 +54,8 @@ def apply_enterprise_artifact_policy(artifacts: ArtifactSet, system: str) -> Art
         ):
             _replace(files, required)
     if "frontend specialist" in role:
-        _replace(files, FRONTEND_PACKAGE)
+        for required in (FRONTEND_PACKAGE, FRONTEND_APP):
+            _replace(files, required)
     if "qa specialist" in role:
         for required in (
             _QA_USINGS,
@@ -77,6 +79,7 @@ def apply_enterprise_bundle_policy(bundle: CodeBundle) -> CodeBundle:
         TEST_PROJECT,
         BACKEND_DOCKERFILE,
         FRONTEND_PACKAGE,
+        FRONTEND_APP,
         FRONTEND_DOCKERFILE,
         STACK_CONTRACT_TEST,
         MANAGER_SCOPE_DOMAIN,
