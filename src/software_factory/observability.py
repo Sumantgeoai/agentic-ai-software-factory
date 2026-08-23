@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from threading import Lock
+from typing import Iterator
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -11,6 +14,7 @@ from .config import Settings
 
 _lock = Lock()
 _configured = False
+_correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 
 
 def configure_observability(settings: Settings) -> None:
@@ -37,3 +41,16 @@ def configure_observability(settings: Settings) -> None:
 
 def get_tracer():  # type: ignore[no-untyped-def]
     return trace.get_tracer("software_factory")
+
+
+def current_correlation_id() -> str | None:
+    return _correlation_id.get()
+
+
+@contextmanager
+def correlation_context(correlation_id: str) -> Iterator[None]:
+    token: Token[str | None] = _correlation_id.set(correlation_id)
+    try:
+        yield
+    finally:
+        _correlation_id.reset(token)
