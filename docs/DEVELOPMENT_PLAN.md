@@ -5,6 +5,15 @@ Build an autonomous, governed software delivery system that can take a product r
 
 The system must separate probabilistic reasoning from deterministic execution. Agents plan and decide; controlled runtimes perform file, build, test, database, and deployment operations.
 
+## Delivery Status
+
+The repository is delivered in two explicit horizons:
+
+- **Portfolio v1 vertical slice:** the governed end-to-end demonstration scope defined in `docs/ACCEPTANCE.md`. It covers typed planning, role-specific artifact generation, deterministic security and validation, bounded repair, persistence/audit, release packaging, API/correlation/observability, the control center, and the hardened pilot/staging deployment baseline.
+- **Production platform evolution:** the remaining scale, multi-tenant, worker-isolation and enterprise-control items in Phases 5 and 6, plus the richer durability/testing items explicitly listed as deferred in `docs/ACCEPTANCE.md`. These remain planned work and are not represented as already production-complete.
+
+This distinction keeps the architecture roadmap intact without treating every future platform capability as a prerequisite for a credible, runnable portfolio release.
+
 ## Engineering Principles
 
 - Keep agents role-focused with explicit inputs, outputs, permissions, and acceptance criteria.

@@ -54,9 +54,17 @@ async def test_leave_management_release_candidate_passes(tmp_path: Path) -> None
     }
 
     with ZipFile(result.release.path) as archive:
-        assert "release-manifest.json" in archive.namelist()
-        assert "app/main.py" in archive.namelist()
-        assert not any("__pycache__" in name for name in archive.namelist())
+        names = archive.namelist()
+        assert "release-manifest.json" in names
+        assert "app/main.py" in names
+        assert "requirements.txt" in names
+        assert "README.md" in names
+        assert not any("__pycache__" in name for name in names)
+        requirements = archive.read("requirements.txt").decode("utf-8")
+        readme = archive.read("README.md").decode("utf-8")
+        assert "fastapi" in requirements
+        assert "uvicorn" in requirements
+        assert "pip install -r requirements.txt" in readme
 
     stored = service.run_store.get_run(result.project_id)
     events = service.run_store.list_events(result.project_id)
