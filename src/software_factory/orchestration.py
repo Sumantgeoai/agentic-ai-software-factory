@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Literal, TypedDict
 
 from .agents import (
+    ApplicationSpecificationAgent,
     BackendAgent,
     DatabaseAgent,
     DevOpsAgent,
@@ -33,6 +34,7 @@ from .contracts import (
 from .persistence import DatabaseRunStore
 from .runtime import WorkspaceRuntime
 from .security import SecurityAgent
+from .specification import ApplicationSpec
 
 
 class WorkflowState(TypedDict, total=False):
@@ -41,6 +43,7 @@ class WorkflowState(TypedDict, total=False):
     request: ProjectRequest
     requirements: RequirementSpec
     architecture: ArchitectureSpec
+    application_spec: ApplicationSpec
     plan: TaskPlan
     database_artifacts: ArtifactSet
     backend_artifacts: ArtifactSet
@@ -63,6 +66,7 @@ class WorkflowNodes:
         *,
         product_owner: ProductOwnerAgent,
         architect: SolutionArchitectAgent,
+        application_specification: ApplicationSpecificationAgent,
         planner: PlannerAgent,
         database: DatabaseAgent,
         backend: BackendAgent,
@@ -78,6 +82,7 @@ class WorkflowNodes:
     ) -> None:
         self.product_owner = product_owner
         self.architect = architect
+        self.application_specification = application_specification
         self.planner = planner
         self.database = database
         self.backend = backend
@@ -130,14 +135,36 @@ class WorkflowNodes:
         )
         return {"architecture": architecture}
 
+    async def application_specification_node(self, state: WorkflowState) -> dict[str, Any]:
+        application_spec = await self.application_specification.run(
+            state["request"], state["requirements"], state["architecture"]
+        )
+        await self._audit(
+            state,
+            "application_specification",
+            "specification.completed",
+            {
+                "target_profile": application_spec.target_profile.value,
+                "roles": len(application_spec.roles),
+                "pages": len(application_spec.pages),
+                "business_rules": len(application_spec.business_rules),
+            },
+        )
+        return {"application_spec": application_spec}
+
     async def planner_node(self, state: WorkflowState) -> dict[str, Any]:
-        plan = await self.planner.run(state["requirements"], state["architecture"])
+        plan = await self.planner.run(
+            state["requirements"], state["architecture"], state["application_spec"]
+        )
         await self._audit(state, "planner", "plan.completed", {"task_count": len(plan.items)})
         return {"plan": plan}
 
     async def database_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.database.run(
-            state["requirements"], state["architecture"], state["plan"]
+            state["requirements"],
+            state["architecture"],
+            state["application_spec"],
+            state["plan"],
         )
         await self._audit(
             state,
@@ -149,7 +176,10 @@ class WorkflowNodes:
 
     async def backend_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.backend.run(
-            state["requirements"], state["architecture"], state["plan"]
+            state["requirements"],
+            state["architecture"],
+            state["application_spec"],
+            state["plan"],
         )
         await self._audit(
             state,
@@ -161,7 +191,10 @@ class WorkflowNodes:
 
     async def frontend_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.frontend.run(
-            state["requirements"], state["architecture"], state["plan"]
+            state["requirements"],
+            state["architecture"],
+            state["application_spec"],
+            state["plan"],
         )
         await self._audit(
             state,
@@ -172,13 +205,21 @@ class WorkflowNodes:
         return {"frontend_artifacts": artifacts}
 
     async def qa_artifacts_node(self, state: WorkflowState) -> dict[str, Any]:
-        artifacts = await self.qa.run(state["requirements"], state["architecture"], state["plan"])
+        artifacts = await self.qa.run(
+            state["requirements"],
+            state["architecture"],
+            state["application_spec"],
+            state["plan"],
+        )
         await self._audit(state, "qa", "artifacts.completed", {"files": len(artifacts.files)})
         return {"qa_artifacts": artifacts}
 
     async def devops_node(self, state: WorkflowState) -> dict[str, Any]:
         artifacts = await self.devops.run(
-            state["requirements"], state["architecture"], state["plan"]
+            state["requirements"],
+            state["architecture"],
+            state["application_spec"],
+            state["plan"],
         )
         await self._audit(
             state,
@@ -261,6 +302,7 @@ class WorkflowNodes:
         bundle = await self.backend.repair(
             state["requirements"],
             state["architecture"],
+            state["application_spec"],
             state["plan"],
             state["bundle"],
             failure,
@@ -308,6 +350,7 @@ class SequentialWorkflow:
         for node in (
             self.nodes.product_owner_node,
             self.nodes.architect_node,
+            self.nodes.application_specification_node,
             self.nodes.planner_node,
             self.nodes.database_node,
             self.nodes.backend_node,
@@ -345,6 +388,7 @@ def build_workflow(nodes: WorkflowNodes):  # type: ignore[no-untyped-def]
     for name, node in (
         ("product_owner", nodes.product_owner_node),
         ("architect", nodes.architect_node),
+        ("application_specification", nodes.application_specification_node),
         ("planner", nodes.planner_node),
         ("database", nodes.database_node),
         ("backend", nodes.backend_node),
@@ -363,7 +407,8 @@ def build_workflow(nodes: WorkflowNodes):  # type: ignore[no-untyped-def]
         builder.add_node(name, node)
     builder.add_edge(START, "product_owner")
     builder.add_edge("product_owner", "architect")
-    builder.add_edge("architect", "planner")
+    builder.add_edge("architect", "application_specification")
+    builder.add_edge("application_specification", "planner")
     builder.add_edge("planner", "database")
     builder.add_edge("database", "backend")
     builder.add_edge("backend", "frontend")

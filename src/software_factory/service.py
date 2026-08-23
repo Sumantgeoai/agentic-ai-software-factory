@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from opentelemetry.trace import Status, StatusCode
 
 from .agents import (
+    ApplicationSpecificationAgent,
     BackendAgent,
     DatabaseAgent,
     DevOpsAgent,
@@ -42,6 +43,7 @@ class SoftwareFactoryService:
         self.nodes = WorkflowNodes(
             product_owner=ProductOwnerAgent(self.model),
             architect=SolutionArchitectAgent(self.model),
+            application_specification=ApplicationSpecificationAgent(self.model),
             planner=PlannerAgent(self.model),
             database=DatabaseAgent(self.model),
             backend=BackendAgent(self.model),
@@ -82,6 +84,7 @@ class SoftwareFactoryService:
         tracer = get_tracer()
         with tracer.start_as_current_span("factory.run") as span:
             span.set_attribute("factory.project_id", str(project_id))
+            span.set_attribute("factory.target_profile", request.target_profile.value)
             if correlation_id:
                 span.set_attribute("factory.correlation_id", correlation_id)
             try:

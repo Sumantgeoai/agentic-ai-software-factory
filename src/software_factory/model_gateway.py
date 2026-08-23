@@ -15,8 +15,28 @@ from .contracts import (
     CodeBundle,
     GeneratedFile,
     RequirementSpec,
+    TargetProfile,
     TaskPlan,
     WorkItem,
+)
+from .enterprise_fixture import (
+    enterprise_application_spec,
+    enterprise_architecture,
+    enterprise_artifacts,
+    enterprise_bundle,
+    enterprise_requirements,
+    enterprise_task_plan,
+)
+from .specification import (
+    ApplicationSpec,
+    BusinessRuleSpec,
+    EntityFieldSpec,
+    EntitySpec,
+    PageSpec,
+    PermissionSpec,
+    RoleSpec,
+    WorkflowSpec,
+    WorkflowStepSpec,
 )
 
 T = TypeVar("T", bound=BaseModel)
@@ -75,94 +95,191 @@ class FixtureModelGateway:
     """Deterministic gateway used by tests and zero-credential local demos."""
 
     async def complete(self, schema: type[T], *, system: str, user: str) -> T:
-        del user
+        enterprise = TargetProfile.ENTERPRISE_DOTNET_REACT.value in user
         if schema is RequirementSpec:
-            value: BaseModel = RequirementSpec(
-                product_name="Leave Management",
-                actors=["employee", "manager", "hr"],
-                functional_requirements=[
-                    "Employees can submit leave requests",
-                    "Managers can approve or reject pending requests",
-                    "HR can list all leave requests",
-                ],
-                non_functional_requirements=[
-                    "Input validation on every write endpoint",
-                    "Deterministic state transitions for leave status",
-                    "API tests cover submit and approval flow",
-                ],
-                constraints=["No external database required for the demonstration workspace"],
-                acceptance_criteria=[
-                    "A leave request can be created",
-                    "A manager can approve a pending request",
-                    "HR can retrieve the resulting request",
-                    "The generated workspace test suite passes",
-                ],
+            value: BaseModel = (
+                enterprise_requirements() if enterprise else _lightweight_requirements()
             )
         elif schema is ArchitectureSpec:
-            value = ArchitectureSpec(
-                summary="Single-service FastAPI application with a small browser UI and typed API.",
-                backend="FastAPI / Python 3.12",
-                frontend="Server-served HTML and browser fetch API",
-                database="In-memory repository for the demo workspace",
-                authentication="Out of scope for the generated demonstration app",
-                services=["leave-api"],
-                security_constraints=[
-                    "No arbitrary command execution",
-                    "All generated files remain inside the project workspace",
-                ],
-                decisions=[
-                    "Keep the generated demo dependency-light so validation is deterministic",
-                    "Use explicit leave status transitions",
-                ],
-            )
+            value = enterprise_architecture() if enterprise else _lightweight_architecture()
+        elif schema is ApplicationSpec:
+            value = enterprise_application_spec() if enterprise else _lightweight_application_spec()
         elif schema is TaskPlan:
-            value = TaskPlan(
-                items=[
-                    WorkItem(
-                        id="DB-1",
-                        title="Implement leave repository",
-                        owner=AgentRole.DATABASE,
-                        acceptance_criteria=["Repository exposes deterministic CRUD operations"],
-                    ),
-                    WorkItem(
-                        id="API-1",
-                        title="Implement leave request domain and API",
-                        owner=AgentRole.BACKEND,
-                        depends_on=["DB-1"],
-                        acceptance_criteria=["Submit, list and approve endpoints are implemented"],
-                    ),
-                    WorkItem(
-                        id="UI-1",
-                        title="Implement minimal browser UI",
-                        owner=AgentRole.FRONTEND,
-                        depends_on=["API-1"],
-                        acceptance_criteria=["UI can load leave requests"],
-                    ),
-                    WorkItem(
-                        id="QA-1",
-                        title="Verify request and approval flow",
-                        owner=AgentRole.QA,
-                        depends_on=["API-1"],
-                        acceptance_criteria=["Automated tests pass"],
-                    ),
-                    WorkItem(
-                        id="OPS-1",
-                        title="Package a runnable release",
-                        owner=AgentRole.DEVOPS,
-                        depends_on=["QA-1"],
-                        acceptance_criteria=[
-                            "Runtime dependencies and startup instructions are included"
-                        ],
-                    ),
-                ]
-            )
+            value = enterprise_task_plan() if enterprise else _lightweight_task_plan()
         elif schema is ArtifactSet:
-            value = _fixture_artifacts(system)
+            value = enterprise_artifacts(system) if enterprise else _fixture_artifacts(system)
         elif schema is CodeBundle:
-            value = _leave_management_bundle()
+            value = enterprise_bundle() if enterprise else _leave_management_bundle()
         else:
             raise TypeError(f"Fixture gateway does not support {schema.__name__}")
         return schema.model_validate(value.model_dump())
+
+
+def _lightweight_requirements() -> RequirementSpec:
+    return RequirementSpec(
+        product_name="Leave Management",
+        actors=["employee", "manager", "hr"],
+        functional_requirements=[
+            "Employees can submit leave requests",
+            "Managers can approve or reject pending requests",
+            "HR can list all leave requests",
+        ],
+        non_functional_requirements=[
+            "Input validation on every write endpoint",
+            "Deterministic state transitions for leave status",
+            "API tests cover submit and approval flow",
+        ],
+        constraints=["No external database required for the demonstration workspace"],
+        acceptance_criteria=[
+            "A leave request can be created",
+            "A manager can approve a pending request",
+            "HR can retrieve the resulting request",
+            "The generated workspace test suite passes",
+        ],
+    )
+
+
+def _lightweight_architecture() -> ArchitectureSpec:
+    return ArchitectureSpec(
+        summary="Single-service FastAPI application with a small browser UI and typed API.",
+        backend="FastAPI / Python 3.12",
+        frontend="Server-served HTML and browser fetch API",
+        database="In-memory repository for the demo workspace",
+        authentication="Out of scope for the generated demonstration app",
+        services=["leave-api"],
+        security_constraints=[
+            "No arbitrary command execution",
+            "All generated files remain inside the project workspace",
+        ],
+        decisions=[
+            "Keep the generated demo dependency-light so validation is deterministic",
+            "Use explicit leave status transitions",
+        ],
+    )
+
+
+def _lightweight_application_spec() -> ApplicationSpec:
+    return ApplicationSpec(
+        target_profile=TargetProfile.LIGHTWEIGHT_PYTHON,
+        roles=[
+            RoleSpec(name="employee", description="Creates leave requests"),
+            RoleSpec(name="manager", description="Decides pending requests"),
+            RoleSpec(name="hr", description="Views all requests"),
+        ],
+        permissions=[
+            PermissionSpec(
+                role="employee",
+                resource="leave-request",
+                actions=["create", "read"],
+                scope="own",
+            ),
+            PermissionSpec(
+                role="manager",
+                resource="leave-request",
+                actions=["approve", "reject"],
+                scope="team",
+            ),
+            PermissionSpec(
+                role="hr",
+                resource="leave-request",
+                actions=["read"],
+                scope="all",
+            ),
+        ],
+        pages=[
+            PageSpec(
+                id="leave-list",
+                route="/",
+                title="Leave Management",
+                allowed_roles=["employee", "manager", "hr"],
+            )
+        ],
+        entities=[
+            EntitySpec(
+                name="LeaveRequest",
+                fields=[
+                    EntityFieldSpec(name="Id", data_type="integer"),
+                    EntityFieldSpec(name="Employee", data_type="string"),
+                    EntityFieldSpec(name="Days", data_type="integer"),
+                    EntityFieldSpec(name="Reason", data_type="string"),
+                    EntityFieldSpec(name="Status", data_type="enum"),
+                ],
+            )
+        ],
+        business_rules=[
+            BusinessRuleSpec(
+                id="BR-LEAVE-PENDING",
+                name="Only pending leave can be decided",
+                description="Approved or rejected leave cannot be decided again.",
+                entity="LeaveRequest",
+                trigger="approve or reject leave",
+                condition="Status == Pending",
+                outcome="transition status",
+                allowed_roles=["manager"],
+                error_code="LEAVE_NOT_PENDING",
+            )
+        ],
+        workflows=[
+            WorkflowSpec(
+                name="Leave approval",
+                steps=[
+                    WorkflowStepSpec(
+                        id="submit",
+                        actor="employee",
+                        action="submit leave",
+                        result="pending request",
+                    ),
+                    WorkflowStepSpec(
+                        id="decide",
+                        actor="manager",
+                        action="approve or reject pending leave",
+                        result="decided request",
+                    ),
+                ],
+            )
+        ],
+    )
+
+
+def _lightweight_task_plan() -> TaskPlan:
+    return TaskPlan(
+        items=[
+            WorkItem(
+                id="DB-1",
+                title="Implement leave repository",
+                owner=AgentRole.DATABASE,
+                acceptance_criteria=["Repository exposes deterministic CRUD operations"],
+            ),
+            WorkItem(
+                id="API-1",
+                title="Implement leave request domain and API",
+                owner=AgentRole.BACKEND,
+                depends_on=["DB-1"],
+                acceptance_criteria=["Submit, list and approve endpoints are implemented"],
+            ),
+            WorkItem(
+                id="UI-1",
+                title="Implement minimal browser UI",
+                owner=AgentRole.FRONTEND,
+                depends_on=["API-1"],
+                acceptance_criteria=["UI can load leave requests"],
+            ),
+            WorkItem(
+                id="QA-1",
+                title="Verify request and approval flow",
+                owner=AgentRole.QA,
+                depends_on=["API-1"],
+                acceptance_criteria=["Automated tests pass"],
+            ),
+            WorkItem(
+                id="OPS-1",
+                title="Package a runnable release",
+                owner=AgentRole.DEVOPS,
+                depends_on=["QA-1"],
+                acceptance_criteria=["Runtime dependencies and startup instructions are included"],
+            ),
+        ]
+    )
 
 
 def _fixture_artifacts(system: str) -> ArtifactSet:
