@@ -17,7 +17,7 @@ A governed multi-agent software-generation runtime that converts a product reque
 - SQL-backed run lifecycle and ordered audit events; SQLite locally and PostgreSQL-compatible configuration
 - API-key protection for v1 routes when configured
 - validated `X-Correlation-ID` propagation through HTTP, OpenTelemetry spans and audit events
-- authenticated run-status and audit-trace retrieval endpoints
+- authenticated run-status and audit-trace retrieval endpoints with internal filesystem paths removed from public responses
 - MCP v2 boundary for governed workspace tools; no raw shell or host filesystem tool
 - React/TypeScript control center for run, security, validation, audit and release evidence
 - Docker baseline with non-root execution, read-only root filesystem and persistent data/workspace volumes
@@ -92,7 +92,7 @@ GET /api/v1/runs/{project_id}
 GET /api/v1/runs/{project_id}/audit
 ```
 
-A successful run writes only governed generated files into the project workspace, executes the allow-listed compile/test gates, evaluates deterministic security evidence, persists the lifecycle trace and creates a release ZIP with an embedded file manifest.
+A successful run writes only governed generated files into the project workspace, executes the allow-listed compile/test gates, evaluates deterministic security evidence, persists the lifecycle trace and creates a release ZIP with an embedded file manifest. Public API responses expose governed evidence but not host workspace or release filesystem paths.
 
 ## MCP
 
@@ -110,6 +110,7 @@ The current container is appropriate for portfolio/pilot and controlled staging 
 
 See:
 
+- `docs/ACCEPTANCE.md`
 - `docs/DEVELOPMENT_PLAN.md`
 - `docs/DEPLOYMENT.md`
 - `docs/adr/0001-governed-agent-runtime.md`
