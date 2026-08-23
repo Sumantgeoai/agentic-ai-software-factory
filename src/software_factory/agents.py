@@ -14,6 +14,7 @@ from .contracts import (
     SecurityReport,
     TaskPlan,
 )
+from .enterprise_architecture_policy import apply_architecture_profile
 from .model_gateway import StructuredModel
 from .specification import ApplicationSpec
 
@@ -43,7 +44,7 @@ class SolutionArchitectAgent:
     async def run(
         self, request: ProjectRequest, requirements: RequirementSpec
     ) -> ArchitectureSpec:
-        return await self._model.complete(
+        architecture = await self._model.complete(
             ArchitectureSpec,
             system=(
                 "You are the solution architect. Design the smallest production-sensible "
@@ -57,6 +58,7 @@ class SolutionArchitectAgent:
                 f"Requirements: {requirements.model_dump_json()}"
             ),
         )
+        return apply_architecture_profile(request.target_profile, architecture)
 
 
 class ApplicationSpecificationAgent:
