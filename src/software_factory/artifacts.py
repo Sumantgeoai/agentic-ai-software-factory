@@ -21,22 +21,22 @@ def assemble_artifacts(sets: list[ArtifactSet]) -> CodeBundle:
 
 
 class ReleaseManager:
-    def create(self, project_dir: Path) -> ReleaseArtifact:
+    def create(self, project_dir: Path, files: list[str]) -> ReleaseArtifact:
         project_dir = project_dir.resolve()
         metadata_dir = project_dir / ".factory"
         metadata_dir.mkdir(parents=True, exist_ok=True)
         release_path = metadata_dir / "release.zip"
         temp_path = metadata_dir / "release.zip.tmp"
 
-        source_files = sorted(
-            path
-            for path in project_dir.rglob("*")
-            if path.is_file() and metadata_dir not in path.parents
-        )
+        source_files = sorted(set(files))
+        if not source_files:
+            raise ValueError("Cannot create an empty release")
         manifest_files: list[dict[str, object]] = []
         with ZipFile(temp_path, "w", compression=ZIP_DEFLATED) as archive:
-            for path in source_files:
-                relative = path.relative_to(project_dir).as_posix()
+            for relative in source_files:
+                path = (project_dir / relative).resolve()
+                if project_dir not in path.parents or not path.is_file():
+                    raise ValueError(f"Release source is outside workspace or missing: {relative}")
                 data = path.read_bytes()
                 manifest_files.append(
                     {
