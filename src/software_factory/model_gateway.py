@@ -176,7 +176,8 @@ def _fixture_artifacts(system: str) -> ArtifactSet:
                         "from typing import Any\n\n"
                         "_records: dict[int, Any] = {}\n\n"
                         "def save(record: Any) -> None:\n    _records[record.id] = record\n\n"
-                        "def get(record_id: int) -> Any | None:\n    return _records.get(record_id)\n\n"
+                        "def get(record_id: int) -> Any | None:\n"
+                        "    return _records.get(record_id)\n\n"
                         "def list_all() -> list[Any]:\n    return list(_records.values())\n"
                     ),
                 ),
