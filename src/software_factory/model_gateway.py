@@ -97,7 +97,9 @@ class FixtureModelGateway:
     async def complete(self, schema: type[T], *, system: str, user: str) -> T:
         enterprise = TargetProfile.ENTERPRISE_DOTNET_REACT.value in user
         if schema is RequirementSpec:
-            value: BaseModel = enterprise_requirements() if enterprise else _lightweight_requirements()
+            value: BaseModel = (
+                enterprise_requirements() if enterprise else _lightweight_requirements()
+            )
         elif schema is ArchitectureSpec:
             value = enterprise_architecture() if enterprise else _lightweight_architecture()
         elif schema is ApplicationSpec:
