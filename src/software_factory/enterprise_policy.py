@@ -7,13 +7,20 @@ from .enterprise_authorization import (
     MANAGER_SCOPE_TESTS,
     PROGRAM,
 )
+from .enterprise_stack import (
+    API_PROJECT,
+    BACKEND_DOCKERFILE,
+    FRONTEND_DOCKERFILE,
+    FRONTEND_PACKAGE,
+    TEST_PROJECT,
+)
 
 _BACKEND_BUILD_POLICY = GeneratedFile(
     path="backend/Directory.Build.props",
     content='''<Project>
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'LeaveManagement.Api'">
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.29" />
-  </ItemGroup>
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
 </Project>
 ''',
 )
@@ -36,10 +43,21 @@ def apply_enterprise_artifact_policy(artifacts: ArtifactSet, system: str) -> Art
     files = list(artifacts.files)
     role = system.lower()
     if "backend specialist" in role:
-        for required in (_BACKEND_BUILD_POLICY, MANAGER_SCOPE_DOMAIN, LEAVE_SERVICE, PROGRAM):
+        for required in (
+            _BACKEND_BUILD_POLICY,
+            API_PROJECT,
+            MANAGER_SCOPE_DOMAIN,
+            LEAVE_SERVICE,
+            PROGRAM,
+        ):
             _replace(files, required)
+    if "frontend specialist" in role:
+        _replace(files, FRONTEND_PACKAGE)
     if "qa specialist" in role:
-        for required in (_QA_USINGS, MANAGER_SCOPE_TESTS):
+        for required in (_QA_USINGS, TEST_PROJECT, MANAGER_SCOPE_TESTS):
+            _replace(files, required)
+    if "devops specialist" in role:
+        for required in (BACKEND_DOCKERFILE, FRONTEND_DOCKERFILE):
             _replace(files, required)
     return ArtifactSet(files=files)
 
@@ -49,6 +67,11 @@ def apply_enterprise_bundle_policy(bundle: CodeBundle) -> CodeBundle:
     for required in (
         _BACKEND_BUILD_POLICY,
         _QA_USINGS,
+        API_PROJECT,
+        TEST_PROJECT,
+        BACKEND_DOCKERFILE,
+        FRONTEND_PACKAGE,
+        FRONTEND_DOCKERFILE,
         MANAGER_SCOPE_DOMAIN,
         LEAVE_SERVICE,
         PROGRAM,
