@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from .contracts import (
+    AgentRole,
     ArchitectureSpec,
+    ArtifactSet,
     CodeBundle,
     CommandEvidence,
     ExecutionEvidence,
@@ -9,6 +11,7 @@ from .contracts import (
     QualityReport,
     RequirementSpec,
     ReviewDecision,
+    SecurityReport,
     TaskPlan,
 )
 from .model_gateway import StructuredModel
@@ -60,7 +63,8 @@ class PlannerAgent:
             TaskPlan,
             system=(
                 "You are the delivery planner. Produce dependency-aware engineering tasks with "
-                "verifiable acceptance criteria. Keep tasks coarse enough to avoid busywork."
+                "verifiable acceptance criteria. Assign database, backend, frontend, QA and DevOps "
+                "work explicitly when the architecture requires those concerns."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
@@ -69,7 +73,9 @@ class PlannerAgent:
         )
 
 
-class BackendAgent:
+class SpecialistArtifactAgent:
+    role: AgentRole
+
     def __init__(self, model: StructuredModel) -> None:
         self._model = model
 
@@ -78,18 +84,41 @@ class BackendAgent:
         requirements: RequirementSpec,
         architecture: ArchitectureSpec,
         plan: TaskPlan,
-    ) -> CodeBundle:
+    ) -> ArtifactSet:
+        assigned = [item for item in plan.items if item.owner is self.role]
         return await self._model.complete(
-            CodeBundle,
+            ArtifactSet,
             system=(
-                "You are the implementation agent. Return complete files for the assigned vertical "
-                "slice. Keep code idiomatic, concise, testable and free of placeholder TODOs."
+                f"You are the {self.role.value} specialist. Produce only files owned by this role. "
+                "Return complete production-sensible artifacts with no placeholder TODOs. Do not "
+                "perform side effects; deterministic tooling will materialize and validate files."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
-                f"Architecture: {architecture.model_dump_json()}\nPlan: {plan.model_dump_json()}"
+                f"Architecture: {architecture.model_dump_json()}\n"
+                f"Assigned tasks: {[item.model_dump(mode='json') for item in assigned]}"
             ),
         )
+
+
+class DatabaseAgent(SpecialistArtifactAgent):
+    role = AgentRole.DATABASE
+
+
+class FrontendAgent(SpecialistArtifactAgent):
+    role = AgentRole.FRONTEND
+
+
+class DevOpsAgent(SpecialistArtifactAgent):
+    role = AgentRole.DEVOPS
+
+
+class QAAgent(SpecialistArtifactAgent):
+    role = AgentRole.QA
+
+
+class BackendAgent(SpecialistArtifactAgent):
+    role = AgentRole.BACKEND
 
     async def repair(
         self,
@@ -102,7 +131,7 @@ class BackendAgent:
         return await self._model.complete(
             CodeBundle,
             system=(
-                "You are repairing a failed implementation. Use the deterministic build/test "
+                "You are repairing a failed integrated implementation. Use deterministic build/test "
                 "evidence as the source of truth. Return a complete corrected file bundle."
             ),
             user=(
@@ -115,7 +144,7 @@ class BackendAgent:
         )
 
 
-class QAAgent:
+class QualityGate:
     async def run(self, execution: ExecutionEvidence) -> QualityReport:
         failures = [
             command.stderr or command.stdout or f"{command.command} failed"
@@ -134,13 +163,19 @@ class QAAgent:
 
 
 class ReviewerAgent:
-    async def run(self, quality: QualityReport) -> ReviewDecision:
+    async def run(self, quality: QualityReport, security: SecurityReport) -> ReviewDecision:
+        security_risks = [
+            f"{finding.severity}:{finding.rule}:{finding.file}: {finding.message}"
+            for finding in security.findings
+        ]
+        approved = quality.passed and security.passed
+        risks = [*quality.failures, *security_risks]
         return ReviewDecision(
-            approved=quality.passed,
+            approved=approved,
             summary=(
-                "Release candidate approved from verified quality evidence."
-                if quality.passed
-                else "Release candidate rejected after bounded repair attempts."
+                "Release candidate approved from deterministic quality and security evidence."
+                if approved
+                else "Release candidate rejected by deterministic quality or security evidence."
             ),
-            risks=[] if quality.passed else quality.failures,
+            risks=risks,
         )
