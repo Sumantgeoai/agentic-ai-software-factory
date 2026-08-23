@@ -216,7 +216,8 @@ def _fixture_artifacts(system: str) -> ArtifactSet:
                     content=(
                         "# Leave Management\n\n"
                         "Install runtime dependencies with `pip install -r requirements.txt`, then "
-                        "start the release with `uvicorn app.main:app --host 127.0.0.1 --port 8000`.\n"
+                        "start the release with `uvicorn app.main:app --host 127.0.0.1 --port 8000`. "
+                        "Open `http://127.0.0.1:8000/` to use the browser UI.\n"
                     ),
                 ),
             ]
@@ -229,14 +230,17 @@ def _app_source() -> str:
 
 from enum import StrEnum
 from itertools import count
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app import repository
 
 app = FastAPI(title="Leave Management")
 _ids = count(1)
+_index = Path(__file__).resolve().parents[1] / "web" / "index.html"
 
 
 class LeaveStatus(StrEnum):
@@ -258,6 +262,11 @@ class LeaveDecision(BaseModel):
 class LeaveRecord(LeaveCreate):
     id: int
     status: LeaveStatus = LeaveStatus.PENDING
+
+
+@app.get("/", include_in_schema=False)
+def browser_ui() -> FileResponse:
+    return FileResponse(_index)
 
 
 @app.post("/api/leaves", response_model=LeaveRecord, status_code=201)
@@ -293,6 +302,12 @@ def _test_source() -> str:
 from app.main import app
 
 client = TestClient(app)
+
+
+def test_browser_ui_is_served() -> None:
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Leave Management" in response.text
 
 
 def test_submit_approve_and_list_leave() -> None:
