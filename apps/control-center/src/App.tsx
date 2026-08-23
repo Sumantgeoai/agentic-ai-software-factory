@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 
+type TargetProfile = "lightweight-python" | "enterprise-dotnet-react";
 type WorkItem = { id: string; title: string; owner: string };
 type CommandEvidence = { command: string; return_code: number };
 type SecurityFinding = { severity: string; rule: string; file: string; message: string };
@@ -62,6 +63,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function App() {
   const [request, setRequest] = useState(defaultRequest);
+  const [targetProfile, setTargetProfile] = useState<TargetProfile>("enterprise-dotnet-react");
   const [apiKey, setApiKey] = useState("");
   const [result, setResult] = useState<FactoryRun | null>(null);
   const [storedRun, setStoredRun] = useState<StoredRun | null>(null);
@@ -96,7 +98,7 @@ export default function App() {
       const factoryRun = await fetchJson<FactoryRun>(`${baseUrl}/api/v1/projects/run`, {
         method: "POST",
         headers: requestHeaders(apiKey, correlation, true),
-        body: JSON.stringify({ request }),
+        body: JSON.stringify({ request, target_profile: targetProfile }),
       });
       setResult(factoryRun);
       try {
@@ -152,6 +154,17 @@ export default function App() {
           </div>
         </div>
 
+        <label htmlFor="target-profile">Generation profile</label>
+        <select
+          id="target-profile"
+          value={targetProfile}
+          onChange={(event) => setTargetProfile(event.target.value as TargetProfile)}
+        >
+          <option value="enterprise-dotnet-react">Enterprise · ASP.NET Core + React + PostgreSQL</option>
+          <option value="lightweight-python">Lightweight · Python/FastAPI</option>
+        </select>
+        <small>Profile selection is sent as a typed factory input; agents must honor the selected stack.</small>
+
         <label htmlFor="request">Product request</label>
         <textarea
           id="request"
@@ -179,7 +192,7 @@ export default function App() {
         <section className="results">
           <div className="status-row">
             <div>
-              <span className="eyebrow">{result.requirements.product_name}</span>
+              <span className="eyebrow">{result.requirements.product_name} · {targetProfile}</span>
               <h2>{result.review.approved ? "Release candidate approved" : "Release blocked"}</h2>
             </div>
             <span className={`pill ${result.review.approved ? "pass" : "fail"}`}>
