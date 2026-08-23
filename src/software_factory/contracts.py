@@ -167,6 +167,77 @@ class StoredRun(BaseModel):
     updated_at: str
 
 
+class PublicExecutionEvidence(BaseModel):
+    files_written: list[str]
+    commands: list[CommandEvidence]
+
+    @classmethod
+    def from_execution(cls, execution: ExecutionEvidence) -> PublicExecutionEvidence:
+        return cls(
+            files_written=execution.files_written,
+            commands=execution.commands,
+        )
+
+
+class PublicReleaseArtifact(BaseModel):
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    file_count: int = Field(ge=1)
+
+    @classmethod
+    def from_release(cls, release: ReleaseArtifact) -> PublicReleaseArtifact:
+        return cls(sha256=release.sha256, file_count=release.file_count)
+
+
+class FactoryRunView(BaseModel):
+    project_id: UUID
+    requirements: RequirementSpec
+    architecture: ArchitectureSpec
+    plan: TaskPlan
+    execution: PublicExecutionEvidence
+    quality: QualityReport
+    security: SecurityReport
+    review: ReviewDecision
+    release: PublicReleaseArtifact | None = None
+    repair_attempts: int = Field(ge=0)
+
+    @classmethod
+    def from_run(cls, run: FactoryRun) -> FactoryRunView:
+        return cls(
+            project_id=run.project_id,
+            requirements=run.requirements,
+            architecture=run.architecture,
+            plan=run.plan,
+            execution=PublicExecutionEvidence.from_execution(run.execution),
+            quality=run.quality,
+            security=run.security,
+            review=run.review,
+            release=(PublicReleaseArtifact.from_release(run.release) if run.release else None),
+            repair_attempts=run.repair_attempts,
+        )
+
+
+class StoredRunView(BaseModel):
+    project_id: UUID
+    status: Literal["running", "completed", "failed"]
+    request: str
+    result: FactoryRunView | None = None
+    error: str | None = None
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def from_stored(cls, run: StoredRun) -> StoredRunView:
+        return cls(
+            project_id=run.project_id,
+            status=run.status,
+            request=run.request,
+            result=FactoryRunView.from_run(run.result) if run.result else None,
+            error=run.error,
+            created_at=run.created_at,
+            updated_at=run.updated_at,
+        )
+
+
 class AuditEvent(BaseModel):
     id: int
     project_id: UUID
