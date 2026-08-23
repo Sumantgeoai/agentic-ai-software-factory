@@ -15,6 +15,7 @@ from .contracts import (
     TaskPlan,
 )
 from .model_gateway import StructuredModel
+from .specification import ApplicationSpec
 
 
 class ProductOwnerAgent:
@@ -28,7 +29,10 @@ class ProductOwnerAgent:
                 "You are the product owner. Convert the request into precise scope and measurable "
                 "acceptance criteria. Do not invent integrations that the request does not need."
             ),
-            user=request.request,
+            user=(
+                f"Target profile: {request.target_profile.value}\n"
+                f"Request: {request.request}"
+            ),
         )
 
 
@@ -44,9 +48,41 @@ class SolutionArchitectAgent:
             system=(
                 "You are the solution architect. Design the smallest production-sensible "
                 "architecture that satisfies the validated requirements and makes security "
-                "boundaries explicit."
+                "boundaries explicit. Honor the selected target profile rather than silently "
+                "substituting another stack."
             ),
-            user=f"Request: {request.request}\nRequirements: {requirements.model_dump_json()}",
+            user=(
+                f"Target profile: {request.target_profile.value}\n"
+                f"Request: {request.request}\n"
+                f"Requirements: {requirements.model_dump_json()}"
+            ),
+        )
+
+
+class ApplicationSpecificationAgent:
+    def __init__(self, model: StructuredModel) -> None:
+        self._model = model
+
+    async def run(
+        self,
+        request: ProjectRequest,
+        requirements: RequirementSpec,
+        architecture: ArchitectureSpec,
+    ) -> ApplicationSpec:
+        return await self._model.complete(
+            ApplicationSpec,
+            system=(
+                "You are the business/application specification agent. Before any code generation, "
+                "produce the shared typed application contract for roles, scoped permissions, "
+                "pages/routes, entities, workflows and stable business rules. Every business rule "
+                "must be explicit and backend-enforced. Frontend guards and validation are UX only."
+            ),
+            user=(
+                f"Target profile: {request.target_profile.value}\n"
+                f"Request: {request.request}\n"
+                f"Requirements: {requirements.model_dump_json()}\n"
+                f"Architecture: {architecture.model_dump_json()}"
+            ),
         )
 
 
@@ -58,17 +94,20 @@ class PlannerAgent:
         self,
         requirements: RequirementSpec,
         architecture: ArchitectureSpec,
+        application_spec: ApplicationSpec,
     ) -> TaskPlan:
         return await self._model.complete(
             TaskPlan,
             system=(
                 "You are the delivery planner. Produce dependency-aware engineering tasks with "
                 "verifiable acceptance criteria. Assign database, backend, frontend, QA and DevOps "
-                "work explicitly when the architecture requires those concerns."
+                "work explicitly when the architecture requires those concerns. Treat the validated "
+                "application specification as the source of truth for roles, routes and business rules."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
-                f"Architecture: {architecture.model_dump_json()}"
+                f"Architecture: {architecture.model_dump_json()}\n"
+                f"Application specification: {application_spec.model_dump_json()}"
             ),
         )
 
@@ -83,6 +122,7 @@ class SpecialistArtifactAgent:
         self,
         requirements: RequirementSpec,
         architecture: ArchitectureSpec,
+        application_spec: ApplicationSpec,
         plan: TaskPlan,
     ) -> ArtifactSet:
         assigned = [item for item in plan.items if item.owner is self.role]
@@ -93,11 +133,13 @@ class SpecialistArtifactAgent:
             system=(
                 f"You are the {self.role.value} specialist. Produce only files owned by this role. "
                 "Return complete production-sensible artifacts with no placeholder TODOs. Do not "
-                "perform side effects; deterministic tooling will materialize and validate files."
+                "perform side effects; deterministic tooling will materialize and validate files. "
+                "Do not alter the shared application specification."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
                 f"Architecture: {architecture.model_dump_json()}\n"
+                f"Application specification: {application_spec.model_dump_json()}\n"
                 f"Assigned tasks: {[item.model_dump(mode='json') for item in assigned]}"
             ),
         )
@@ -126,6 +168,7 @@ class BackendAgent(SpecialistArtifactAgent):
         self,
         requirements: RequirementSpec,
         architecture: ArchitectureSpec,
+        application_spec: ApplicationSpec,
         plan: TaskPlan,
         previous: CodeBundle,
         failure: CommandEvidence,
@@ -134,12 +177,13 @@ class BackendAgent(SpecialistArtifactAgent):
             CodeBundle,
             system=(
                 "You are repairing a failed integrated implementation. Use deterministic "
-                "build/test evidence as the source of truth. Return a complete corrected file "
-                "bundle."
+                "build/test evidence as the source of truth. Preserve the validated application "
+                "specification and return a complete corrected file bundle."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
                 f"Architecture: {architecture.model_dump_json()}\n"
+                f"Application specification: {application_spec.model_dump_json()}\n"
                 f"Plan: {plan.model_dump_json()}\n"
                 f"Previous bundle: {previous.model_dump_json()}\n"
                 f"Failure: {failure.model_dump_json()}"
