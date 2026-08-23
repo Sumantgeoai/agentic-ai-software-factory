@@ -238,7 +238,9 @@ class WorkflowNodes:
         return {"review": review}
 
     async def release_node(self, state: WorkflowState) -> dict[str, Any]:
-        release = self.release_manager.create(Path(state["execution"].workspace))
+        release = self.release_manager.create(
+            Path(state["execution"].workspace), state["execution"].files_written
+        )
         self._audit(
             state,
             "release",
