@@ -4,7 +4,6 @@ from .contracts import AgentRole, ArtifactSet, CodeBundle, GeneratedFile, Requir
 from .project_model import EnterpriseProjectModel
 from .spec_policy_renderer import (
     render_business_rules,
-    render_resource_scopes,
     render_rule_tests,
     render_scope_tests,
     render_secured_program,
@@ -18,6 +17,7 @@ from .spec_runtime_renderer import (
     _replace,
     _test_project,
 )
+from .spec_scope_renderer import render_resource_scopes
 from .specification import ApplicationSpec
 
 
