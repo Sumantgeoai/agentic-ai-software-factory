@@ -41,6 +41,13 @@ def render_enterprise_runtime_bundle(
     _replace(files, _test_project(model))
     _replace(files, render_rule_tests(model, spec))
     _replace(files, render_scope_tests(model, spec))
+    _replace(
+        files,
+        GeneratedFile(
+            path=model.test_path("Usings.cs"),
+            content="global using Xunit;\n",
+        ),
+    )
     for file in _frontend_bootstrap(requirements):
         _replace(files, file)
     for file in _docker_files(model, requirements):
@@ -64,13 +71,6 @@ def render_enterprise_role_artifacts(
     bundle = render_enterprise_runtime_bundle(requirements, spec)
     model = EnterpriseProjectModel.from_spec(requirements, spec)
     files = [file for file in bundle.files if _owned_by_role(file, model, role)]
-    if role is AgentRole.QA:
-        files.append(
-            GeneratedFile(
-                path=model.test_path("Usings.cs"),
-                content="global using Xunit;\n",
-            )
-        )
     return ArtifactSet(files=files)
 
 
