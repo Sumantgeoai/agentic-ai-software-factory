@@ -6,8 +6,10 @@ from .contracts import RequirementSpec, TargetProfile
 from .specification import (
     ApplicationSpec,
     BusinessRuleSpec,
+    EntityActionSpec,
     EntityFieldSpec,
     EntitySpec,
+    FieldMutationSpec,
     PageSpec,
     PermissionSpec,
     RoleSpec,
@@ -39,6 +41,21 @@ def _field_not_equals(field: str, value: str) -> RuleConditionSpec:
         left=RuleOperandSpec(field=field),
         operator="ne",
         right=RuleOperandSpec(value=value),
+    )
+
+
+def _status_action(
+    action_id: str,
+    entity: str,
+    status: str,
+) -> EntityActionSpec:
+    return EntityActionSpec(
+        id=action_id,
+        entity=entity,
+        permission_action=action_id,
+        mutations=[
+            FieldMutationSpec(field="Status", source="literal", value=status),
+        ],
     )
 
 
@@ -130,6 +147,10 @@ def _leave() -> ScenarioFixture:
                 ],
             )
         ],
+        actions=[
+            _status_action("approve", "LeaveRequest", "Approved"),
+            _status_action("reject", "LeaveRequest", "Rejected"),
+        ],
         business_rules=[
             BusinessRuleSpec(
                 id="BR-LEAVE-PENDING",
@@ -141,6 +162,7 @@ def _leave() -> ScenarioFixture:
                 outcome="allow decision",
                 allowed_roles=["manager"],
                 error_code="LEAVE_NOT_PENDING",
+                applies_to=["approve", "reject"],
             )
         ],
         workflows=[
@@ -154,10 +176,18 @@ def _leave() -> ScenarioFixture:
                         result="pending request",
                     ),
                     WorkflowStepSpec(
-                        id="decide",
+                        id="approve",
                         actor="manager",
-                        action="decide team request",
-                        result="approved or rejected request",
+                        action="approve team request",
+                        result="approved request",
+                        action_id="approve",
+                    ),
+                    WorkflowStepSpec(
+                        id="reject",
+                        actor="manager",
+                        action="reject team request",
+                        result="rejected request",
+                        action_id="reject",
                     ),
                 ],
             )
@@ -260,17 +290,32 @@ def _complaint() -> ScenarioFixture:
                 ],
             )
         ],
+        actions=[
+            EntityActionSpec(
+                id="assign",
+                entity="Complaint",
+                permission_action="assign",
+                mutations=[
+                    FieldMutationSpec(
+                        field="AssignedOfficerId",
+                        source="input",
+                        input_name="OfficerId",
+                    )
+                ],
+            )
+        ],
         business_rules=[
             BusinessRuleSpec(
                 id="BR-COMPLAINT-CLOSED",
                 name="Closed complaint immutable",
                 description="Closed complaints cannot be edited by normal workflow.",
                 entity="Complaint",
-                trigger="update complaint",
+                trigger="update or assign complaint",
                 condition=_field_not_equals("Status", "Closed"),
-                outcome="allow update",
+                outcome="allow mutation",
                 allowed_roles=["officer", "supervisor"],
                 error_code="COMPLAINT_CLOSED",
+                applies_to=["update", "assign"],
             )
         ],
         workflows=[
@@ -290,7 +335,19 @@ def _complaint() -> ScenarioFixture:
                         result="resolved complaint",
                     ),
                 ],
-            )
+            ),
+            WorkflowSpec(
+                name="Complaint assignment",
+                steps=[
+                    WorkflowStepSpec(
+                        id="assign",
+                        actor="supervisor",
+                        action="assign complaint to officer",
+                        result="assigned complaint",
+                        action_id="assign",
+                    )
+                ],
+            ),
         ],
     )
     return ScenarioFixture("complaint", requirements, spec)
@@ -385,6 +442,10 @@ def _asset() -> ScenarioFixture:
                 ],
             )
         ],
+        actions=[
+            _status_action("approve", "Inspection", "Approved"),
+            _status_action("reject", "Inspection", "Rejected"),
+        ],
         business_rules=[
             BusinessRuleSpec(
                 id="BR-INSPECTION-PENDING",
@@ -396,6 +457,7 @@ def _asset() -> ScenarioFixture:
                 outcome="allow decision",
                 allowed_roles=["supervisor"],
                 error_code="INSPECTION_NOT_SUBMITTED",
+                applies_to=["approve", "reject"],
             )
         ],
         workflows=[
@@ -409,10 +471,18 @@ def _asset() -> ScenarioFixture:
                         result="submitted inspection",
                     ),
                     WorkflowStepSpec(
-                        id="review",
+                        id="approve",
                         actor="supervisor",
-                        action="review inspection",
-                        result="approved or rejected inspection",
+                        action="approve inspection",
+                        result="approved inspection",
+                        action_id="approve",
+                    ),
+                    WorkflowStepSpec(
+                        id="reject",
+                        actor="supervisor",
+                        action="reject inspection",
+                        result="rejected inspection",
+                        action_id="reject",
                     ),
                 ],
             )

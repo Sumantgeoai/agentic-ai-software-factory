@@ -11,7 +11,8 @@ The target is enterprise CRUD/workflow/business-rule applications with:
 - multiple entities and typed fields;
 - role-aware pages and routes;
 - explicit workflows;
-- typed backend-enforced business rules;
+- typed custom entity actions and field mutations;
+- typed backend-enforced business rules bound to explicit operation/action IDs;
 - explicit record-field-to-identity-claim bindings for own/team scopes;
 - ASP.NET Core + PostgreSQL backend generation;
 - React + TypeScript multi-page frontend generation;
@@ -30,9 +31,11 @@ An enterprise `PermissionSpec` using `own` or `team` scope must identify:
 - the record field that carries the ownership/team identifier;
 - the JWT/OIDC claim type whose values define the caller's allowed scope.
 
-Generated read queries apply the scope before materialization. Generated create/update/decision endpoints enforce the same scope server-side. `all` remains role-authorized but unfiltered.
+Generated read queries apply the scope before materialization. Generated create/update/delete/custom-action endpoints enforce the same scope server-side. `all` remains role-authorized but unfiltered. Generic update generation does not overwrite identifiers, scope-binding fields or fields reserved for declared custom actions; sensitive transitions must be modeled explicitly.
 
-Enterprise `BusinessRuleSpec.condition` uses a typed comparison expression with field/literal operands and a constrained operator set. Free-form condition strings are rejected for the enterprise profile. Unsupported field/operator combinations fail during deterministic compilation rather than falling back to generated arbitrary code.
+Enterprise `BusinessRuleSpec.condition` uses a typed comparison expression with field/literal operands and a constrained operator set. Free-form condition strings are rejected for the enterprise profile. `applies_to` binds each rule to exact CRUD operations or declared action IDs, so source generation never infers enforcement from prose in a trigger description.
+
+`EntityActionSpec` models non-CRUD workflow operations such as approve, reject or assign. An action declares its authorization action and one or more typed field mutations. Mutations can assign a literal or a typed request input. The compiler generates the endpoint, request record when required, row-scope authorization, precondition rule calls and persistence update from the same specification.
 
 ## Hardcoding rule
 
@@ -40,11 +43,11 @@ Domain words such as Leave, Complaint or Inspection may exist in acceptance fixt
 
 The same generator code must build at least these independent scenarios:
 
-1. Leave Management;
-2. Citizen Complaint Portal;
-3. Asset Inspection Manager.
+1. Leave Management: typed approve/reject actions;
+2. Citizen Complaint Portal: typed supervisor assignment action with a request payload;
+3. Asset Inspection Manager: typed approve/reject review actions.
 
-Each scenario must produce different namespaces, project/package names, entities, roles, routes, rule metadata and row-scope claim bindings from its own `ApplicationSpec`.
+Each scenario must produce different namespaces, project/package names, entities, roles, routes, rule metadata, workflow actions and row-scope claim bindings from its own `ApplicationSpec`.
 
 ## Completion gate
 

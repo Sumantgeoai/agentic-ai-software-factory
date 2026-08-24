@@ -5,8 +5,10 @@ from software_factory.contracts import ProjectRequest, TargetProfile
 from software_factory.specification import (
     ApplicationSpec,
     BusinessRuleSpec,
+    EntityActionSpec,
     EntityFieldSpec,
     EntitySpec,
+    FieldMutationSpec,
     PageSpec,
     PermissionSpec,
     RoleSpec,
@@ -82,6 +84,24 @@ def _spec() -> ApplicationSpec:
                 ],
             )
         ],
+        actions=[
+            EntityActionSpec(
+                id="approve",
+                entity="LeaveRequest",
+                permission_action="approve",
+                mutations=[
+                    FieldMutationSpec(field="Status", source="literal", value="Approved")
+                ],
+            ),
+            EntityActionSpec(
+                id="reject",
+                entity="LeaveRequest",
+                permission_action="reject",
+                mutations=[
+                    FieldMutationSpec(field="Status", source="literal", value="Rejected")
+                ],
+            ),
+        ],
         business_rules=[
             BusinessRuleSpec(
                 id="BR-LEAVE-PENDING",
@@ -97,6 +117,7 @@ def _spec() -> ApplicationSpec:
                 outcome="transition to Approved or Rejected",
                 allowed_roles=["manager"],
                 error_code="LEAVE_NOT_PENDING",
+                applies_to=["approve", "reject"],
             )
         ],
         workflows=[
@@ -114,6 +135,7 @@ def _spec() -> ApplicationSpec:
                         actor="manager",
                         action="approve pending request",
                         result="approved leave request",
+                        action_id="approve",
                     ),
                 ],
             )
@@ -135,6 +157,8 @@ def test_application_spec_validates_cross_references() -> None:
     assert spec.business_rules[0].enforcement == "backend"
     assert not isinstance(spec.business_rules[0].condition, str)
     assert spec.permissions[0].scope_binding is not None
+    assert spec.actions[0].id == "approve"
+    assert spec.workflows[0].steps[1].action_id == "approve"
     assert {page.route for page in spec.pages} == {"/leaves", "/approvals", "/reports"}
 
 
@@ -163,4 +187,25 @@ def test_enterprise_spec_rejects_free_form_business_rule_condition() -> None:
     payload = _spec().model_dump()
     payload["business_rules"][0]["condition"] = "Status == Pending"
     with pytest.raises(ValidationError, match="requires typed condition"):
+        ApplicationSpec.model_validate(payload)
+
+
+def test_enterprise_spec_rejects_action_without_matching_permission() -> None:
+    payload = _spec().model_dump()
+    payload["actions"][0]["permission_action"] = "publish"
+    with pytest.raises(ValidationError, match="no matching permission"):
+        ApplicationSpec.model_validate(payload)
+
+
+def test_enterprise_spec_rejects_rule_for_unknown_operation() -> None:
+    payload = _spec().model_dump()
+    payload["business_rules"][0]["applies_to"] = ["archive"]
+    with pytest.raises(ValidationError, match="Unknown business-rule operation"):
+        ApplicationSpec.model_validate(payload)
+
+
+def test_enterprise_spec_rejects_unknown_workflow_action_reference() -> None:
+    payload = _spec().model_dump()
+    payload["workflows"][0]["steps"][1]["action_id"] = "archive"
+    with pytest.raises(ValidationError, match="Unknown workflow action"):
         ApplicationSpec.model_validate(payload)
