@@ -58,10 +58,12 @@ async def test_enterprise_profile_generates_spec_driven_release(tmp_path: Path, 
         model.api_path(f"{model.api_project}.csproj"),
         model.api_path("Program.cs"),
         model.api_path("Domain/BusinessRules.cs"),
+        model.api_path("Authorization/ResourceScopes.cs"),
         model.api_path("Infrastructure/AppDbContext.cs"),
         model.api_path("Infrastructure/Migrations/202608240001_Initial.cs"),
         model.test_path(f"{model.test_project}.csproj"),
         model.test_path("BusinessRuleTests.cs"),
+        model.test_path("ResourceScopeTests.cs"),
         "frontend/package.json",
         "frontend/src/App.tsx",
         "frontend/src/main.tsx",
@@ -74,12 +76,21 @@ async def test_enterprise_profile_generates_spec_driven_release(tmp_path: Path, 
     rules = (workspace / model.api_path("Domain/BusinessRules.cs")).read_text(
         encoding="utf-8"
     )
+    scopes = (workspace / model.api_path("Authorization/ResourceScopes.cs")).read_text(
+        encoding="utf-8"
+    )
     frontend = (workspace / "frontend/src/App.tsx").read_text(encoding="utf-8")
 
     assert "RequireAuthorization" in program
     assert "UseNpgsql" in program
+    assert "ResourceScopes.Filter" in program
+    assert "SCOPE_FORBIDDEN" in scopes
+    for permission in scenario.application_spec.permissions:
+        if permission.scope_binding is not None:
+            assert permission.scope_binding.claim_type in scopes
     for rule in scenario.application_spec.business_rules:
         assert rule.error_code in rules
+        assert not isinstance(rule.condition, str)
     for page in scenario.application_spec.pages:
         assert f'path="{page.route}"' in frontend
 
@@ -95,6 +106,7 @@ async def test_enterprise_profile_generates_spec_driven_release(tmp_path: Path, 
     with ZipFile(result.release.path) as archive:
         names = set(archive.namelist())
         assert model.api_path("Program.cs") in names
+        assert model.api_path("Authorization/ResourceScopes.cs") in names
         assert "frontend/src/App.tsx" in names
         assert "docker-compose.yml" in names
         assert "release-manifest.json" in names
