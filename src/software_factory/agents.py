@@ -16,7 +16,7 @@ from .contracts import (
     TaskPlan,
 )
 from .enterprise_architecture_policy import apply_architecture_profile
-from .model_gateway import StructuredModel
+from .llm_gateway import StructuredModel
 from .spec_runtime_compiler import (
     render_enterprise_role_artifacts,
     render_enterprise_runtime_bundle,

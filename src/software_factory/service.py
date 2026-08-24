@@ -21,7 +21,7 @@ from .agents import (
 from .artifacts import ReleaseManager
 from .config import Settings
 from .contracts import AuditEvent, FactoryRun, ProjectRequest, StoredRun
-from .model_gateway import NvidiaNimGateway, StructuredModel
+from .llm_gateway import NvidiaNimGateway, StructuredModel
 from .observability import current_correlation_id, get_tracer
 from .orchestration import WorkflowNodes, build_workflow
 from .persistence import DatabaseRunStore

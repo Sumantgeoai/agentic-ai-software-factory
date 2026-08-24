@@ -2,8 +2,8 @@ import pytest
 
 from software_factory.agents import SolutionArchitectAgent
 from software_factory.contracts import ProjectRequest, TargetProfile
-from software_factory.enterprise_fixture import enterprise_requirements
-from software_factory.model_gateway import FixtureModelGateway
+from software_factory.scenario_fixtures import SCENARIOS
+from software_factory.spec_fixture_gateway import SpecDrivenFixtureModelGateway
 
 
 @pytest.mark.asyncio
@@ -15,9 +15,9 @@ async def test_enterprise_architecture_matches_selected_current_stack() -> None:
         ),
         target_profile=TargetProfile.ENTERPRISE_DOTNET_REACT,
     )
-    architecture = await SolutionArchitectAgent(FixtureModelGateway()).run(
+    architecture = await SolutionArchitectAgent(SpecDrivenFixtureModelGateway()).run(
         request,
-        enterprise_requirements(),
+        SCENARIOS[0].requirements,
     )
 
     assert architecture.backend == "ASP.NET Core Web API / .NET 10"

@@ -49,6 +49,12 @@ The same generator code must build at least these independent scenarios:
 
 Each scenario must produce different namespaces, project/package names, entities, roles, routes, rule metadata, workflow actions and row-scope claim bindings from its own `ApplicationSpec`.
 
+## Legacy template retirement
+
+The runtime enterprise path must not import or depend on the earlier Leave-specific enterprise fixture, authorization, policy or stack template modules. Structured LLM access is separated from deterministic fixtures, and the normal `fixture` provider resolves an enterprise scenario to an independent `ApplicationSpec` before invoking the same generic compiler used by the live-model path.
+
+The `lightweight-python` fixture remains an isolated compatibility/regression profile. It fails closed if it is accidentally asked to satisfy an `enterprise-dotnet-react` request, preventing the lightweight Leave demo from silently becoming the enterprise source path.
+
 ## Completion gate
 
 Generic acceptance requires all three scenarios to pass the same pipeline:
