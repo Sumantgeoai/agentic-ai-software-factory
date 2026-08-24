@@ -11,6 +11,9 @@ from .specification import (
     PageSpec,
     PermissionSpec,
     RoleSpec,
+    RuleConditionSpec,
+    RuleOperandSpec,
+    ScopeBindingSpec,
     WorkflowSpec,
     WorkflowStepSpec,
 )
@@ -21,6 +24,22 @@ class ScenarioFixture:
     key: str
     requirements: RequirementSpec
     application_spec: ApplicationSpec
+
+
+def _field_equals(field: str, value: str) -> RuleConditionSpec:
+    return RuleConditionSpec(
+        left=RuleOperandSpec(field=field),
+        operator="eq",
+        right=RuleOperandSpec(value=value),
+    )
+
+
+def _field_not_equals(field: str, value: str) -> RuleConditionSpec:
+    return RuleConditionSpec(
+        left=RuleOperandSpec(field=field),
+        operator="ne",
+        right=RuleOperandSpec(value=value),
+    )
 
 
 def _leave() -> ScenarioFixture:
@@ -44,15 +63,60 @@ def _leave() -> ScenarioFixture:
             RoleSpec(name="hr", description="Views organization reporting"),
         ],
         permissions=[
-            PermissionSpec(role="employee", resource="leave-request", actions=["create", "read"], scope="own"),
-            PermissionSpec(role="manager", resource="leave-request", actions=["read", "approve", "reject"], scope="team"),
-            PermissionSpec(role="hr", resource="leave-request", actions=["read"], scope="all"),
+            PermissionSpec(
+                role="employee",
+                resource="leave-request",
+                actions=["create", "read"],
+                scope="own",
+                scope_binding=ScopeBindingSpec(
+                    entity="LeaveRequest",
+                    record_field="EmployeeId",
+                    claim_type="sub",
+                ),
+            ),
+            PermissionSpec(
+                role="manager",
+                resource="leave-request",
+                actions=["read", "approve", "reject"],
+                scope="team",
+                scope_binding=ScopeBindingSpec(
+                    entity="LeaveRequest",
+                    record_field="EmployeeId",
+                    claim_type="team_employee_id",
+                ),
+            ),
+            PermissionSpec(
+                role="hr",
+                resource="leave-request",
+                actions=["read"],
+                scope="all",
+            ),
         ],
         pages=[
-            PageSpec(id="dashboard", route="/", title="Dashboard", allowed_roles=["employee", "manager", "hr"]),
-            PageSpec(id="my-leaves", route="/leaves", title="My Leaves", allowed_roles=["employee"]),
-            PageSpec(id="approvals", route="/approvals", title="Approvals", allowed_roles=["manager"]),
-            PageSpec(id="reports", route="/reports", title="Reports", allowed_roles=["hr"]),
+            PageSpec(
+                id="dashboard",
+                route="/",
+                title="Dashboard",
+                allowed_roles=["employee", "manager", "hr"],
+            ),
+            PageSpec(
+                id="my-leaves",
+                route="/leaves",
+                title="My Leaves",
+                allowed_roles=["employee"],
+            ),
+            PageSpec(
+                id="approvals",
+                route="/approvals",
+                title="Approvals",
+                allowed_roles=["manager"],
+            ),
+            PageSpec(
+                id="reports",
+                route="/reports",
+                title="Reports",
+                allowed_roles=["hr"],
+            ),
         ],
         entities=[
             EntitySpec(
@@ -73,7 +137,7 @@ def _leave() -> ScenarioFixture:
                 description="Only pending requests can be decided.",
                 entity="LeaveRequest",
                 trigger="approve or reject",
-                condition="Status == Pending",
+                condition=_field_equals("Status", "Pending"),
                 outcome="allow decision",
                 allowed_roles=["manager"],
                 error_code="LEAVE_NOT_PENDING",
@@ -83,8 +147,18 @@ def _leave() -> ScenarioFixture:
             WorkflowSpec(
                 name="Leave approval",
                 steps=[
-                    WorkflowStepSpec(id="submit", actor="employee", action="submit request", result="pending request"),
-                    WorkflowStepSpec(id="decide", actor="manager", action="decide team request", result="approved or rejected request"),
+                    WorkflowStepSpec(
+                        id="submit",
+                        actor="employee",
+                        action="submit request",
+                        result="pending request",
+                    ),
+                    WorkflowStepSpec(
+                        id="decide",
+                        actor="manager",
+                        action="decide team request",
+                        result="approved or rejected request",
+                    ),
                 ],
             )
         ],
@@ -113,15 +187,60 @@ def _complaint() -> ScenarioFixture:
             RoleSpec(name="supervisor", description="Oversees the complaint operation"),
         ],
         permissions=[
-            PermissionSpec(role="citizen", resource="complaint", actions=["create", "read"], scope="own"),
-            PermissionSpec(role="officer", resource="complaint", actions=["read", "update"], scope="team"),
-            PermissionSpec(role="supervisor", resource="complaint", actions=["read", "update", "assign"], scope="all"),
+            PermissionSpec(
+                role="citizen",
+                resource="complaint",
+                actions=["create", "read"],
+                scope="own",
+                scope_binding=ScopeBindingSpec(
+                    entity="Complaint",
+                    record_field="CitizenId",
+                    claim_type="sub",
+                ),
+            ),
+            PermissionSpec(
+                role="officer",
+                resource="complaint",
+                actions=["read", "update"],
+                scope="team",
+                scope_binding=ScopeBindingSpec(
+                    entity="Complaint",
+                    record_field="AssignedOfficerId",
+                    claim_type="team_officer_id",
+                ),
+            ),
+            PermissionSpec(
+                role="supervisor",
+                resource="complaint",
+                actions=["read", "update", "assign"],
+                scope="all",
+            ),
         ],
         pages=[
-            PageSpec(id="dashboard", route="/", title="Dashboard", allowed_roles=["citizen", "officer", "supervisor"]),
-            PageSpec(id="my-complaints", route="/complaints", title="My Complaints", allowed_roles=["citizen"]),
-            PageSpec(id="work-queue", route="/work", title="Work Queue", allowed_roles=["officer"]),
-            PageSpec(id="operations", route="/operations", title="Operations", allowed_roles=["supervisor"]),
+            PageSpec(
+                id="dashboard",
+                route="/",
+                title="Dashboard",
+                allowed_roles=["citizen", "officer", "supervisor"],
+            ),
+            PageSpec(
+                id="my-complaints",
+                route="/complaints",
+                title="My Complaints",
+                allowed_roles=["citizen"],
+            ),
+            PageSpec(
+                id="work-queue",
+                route="/work",
+                title="Work Queue",
+                allowed_roles=["officer"],
+            ),
+            PageSpec(
+                id="operations",
+                route="/operations",
+                title="Operations",
+                allowed_roles=["supervisor"],
+            ),
         ],
         entities=[
             EntitySpec(
@@ -132,7 +251,12 @@ def _complaint() -> ScenarioFixture:
                     EntityFieldSpec(name="Title", data_type="string"),
                     EntityFieldSpec(name="Description", data_type="string"),
                     EntityFieldSpec(name="Status", data_type="enum"),
-                    EntityFieldSpec(name="AssignedOfficerId", data_type="uuid", required=False, nullable=True),
+                    EntityFieldSpec(
+                        name="AssignedOfficerId",
+                        data_type="uuid",
+                        required=False,
+                        nullable=True,
+                    ),
                 ],
             )
         ],
@@ -143,7 +267,7 @@ def _complaint() -> ScenarioFixture:
                 description="Closed complaints cannot be edited by normal workflow.",
                 entity="Complaint",
                 trigger="update complaint",
-                condition="Status != Closed",
+                condition=_field_not_equals("Status", "Closed"),
                 outcome="allow update",
                 allowed_roles=["officer", "supervisor"],
                 error_code="COMPLAINT_CLOSED",
@@ -153,8 +277,18 @@ def _complaint() -> ScenarioFixture:
             WorkflowSpec(
                 name="Complaint resolution",
                 steps=[
-                    WorkflowStepSpec(id="submit", actor="citizen", action="submit complaint", result="open complaint"),
-                    WorkflowStepSpec(id="resolve", actor="officer", action="resolve assigned complaint", result="resolved complaint"),
+                    WorkflowStepSpec(
+                        id="submit",
+                        actor="citizen",
+                        action="submit complaint",
+                        result="open complaint",
+                    ),
+                    WorkflowStepSpec(
+                        id="resolve",
+                        actor="officer",
+                        action="resolve assigned complaint",
+                        result="resolved complaint",
+                    ),
                 ],
             )
         ],
@@ -183,15 +317,60 @@ def _asset() -> ScenarioFixture:
             RoleSpec(name="asset_manager", description="Views all asset condition results"),
         ],
         permissions=[
-            PermissionSpec(role="inspector", resource="inspection", actions=["create", "read", "update"], scope="own"),
-            PermissionSpec(role="supervisor", resource="inspection", actions=["read", "approve", "reject"], scope="team"),
-            PermissionSpec(role="asset_manager", resource="inspection", actions=["read"], scope="all"),
+            PermissionSpec(
+                role="inspector",
+                resource="inspection",
+                actions=["create", "read", "update"],
+                scope="own",
+                scope_binding=ScopeBindingSpec(
+                    entity="Inspection",
+                    record_field="InspectorId",
+                    claim_type="sub",
+                ),
+            ),
+            PermissionSpec(
+                role="supervisor",
+                resource="inspection",
+                actions=["read", "approve", "reject"],
+                scope="team",
+                scope_binding=ScopeBindingSpec(
+                    entity="Inspection",
+                    record_field="InspectorId",
+                    claim_type="team_inspector_id",
+                ),
+            ),
+            PermissionSpec(
+                role="asset_manager",
+                resource="inspection",
+                actions=["read"],
+                scope="all",
+            ),
         ],
         pages=[
-            PageSpec(id="dashboard", route="/", title="Dashboard", allowed_roles=["inspector", "supervisor", "asset_manager"]),
-            PageSpec(id="inspections", route="/inspections", title="My Inspections", allowed_roles=["inspector"]),
-            PageSpec(id="review", route="/review", title="Review Queue", allowed_roles=["supervisor"]),
-            PageSpec(id="portfolio", route="/portfolio", title="Asset Portfolio", allowed_roles=["asset_manager"]),
+            PageSpec(
+                id="dashboard",
+                route="/",
+                title="Dashboard",
+                allowed_roles=["inspector", "supervisor", "asset_manager"],
+            ),
+            PageSpec(
+                id="inspections",
+                route="/inspections",
+                title="My Inspections",
+                allowed_roles=["inspector"],
+            ),
+            PageSpec(
+                id="review",
+                route="/review",
+                title="Review Queue",
+                allowed_roles=["supervisor"],
+            ),
+            PageSpec(
+                id="portfolio",
+                route="/portfolio",
+                title="Asset Portfolio",
+                allowed_roles=["asset_manager"],
+            ),
         ],
         entities=[
             EntitySpec(
@@ -213,7 +392,7 @@ def _asset() -> ScenarioFixture:
                 description="Only submitted inspections can transition through review.",
                 entity="Inspection",
                 trigger="approve or reject inspection",
-                condition="Status == Submitted",
+                condition=_field_equals("Status", "Submitted"),
                 outcome="allow decision",
                 allowed_roles=["supervisor"],
                 error_code="INSPECTION_NOT_SUBMITTED",
@@ -223,8 +402,18 @@ def _asset() -> ScenarioFixture:
             WorkflowSpec(
                 name="Inspection review",
                 steps=[
-                    WorkflowStepSpec(id="record", actor="inspector", action="record inspection", result="submitted inspection"),
-                    WorkflowStepSpec(id="review", actor="supervisor", action="review inspection", result="approved or rejected inspection"),
+                    WorkflowStepSpec(
+                        id="record",
+                        actor="inspector",
+                        action="record inspection",
+                        result="submitted inspection",
+                    ),
+                    WorkflowStepSpec(
+                        id="review",
+                        actor="supervisor",
+                        action="review inspection",
+                        result="approved or rejected inspection",
+                    ),
                 ],
             )
         ],

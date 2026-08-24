@@ -12,10 +12,15 @@ from .contracts import (
     RequirementSpec,
     ReviewDecision,
     SecurityReport,
+    TargetProfile,
     TaskPlan,
 )
 from .enterprise_architecture_policy import apply_architecture_profile
 from .model_gateway import StructuredModel
+from .spec_runtime_compiler import (
+    render_enterprise_role_artifacts,
+    render_enterprise_runtime_bundle,
+)
 from .specification import ApplicationSpec
 
 
@@ -76,8 +81,11 @@ class ApplicationSpecificationAgent:
             system=(
                 "You are the business/application specification agent. Before any code generation, "
                 "produce the shared typed application contract for roles, scoped permissions, "
-                "pages/routes, entities, workflows and stable business rules. Every business rule "
-                "must be explicit and backend-enforced. Frontend guards and validation are UX only."
+                "pages/routes, entities, workflows and stable business rules. For enterprise "
+                "profiles every own/team permission must bind a record field to an identity claim, "
+                "and every business-rule condition must use the typed comparison contract rather "
+                "than free-form source code. Every business rule is backend-enforced. Frontend "
+                "guards and validation are UX only."
             ),
             user=(
                 f"Target profile: {request.target_profile.value}\n"
@@ -105,7 +113,7 @@ class PlannerAgent:
                 "verifiable acceptance criteria. Assign database, backend, frontend, QA and DevOps "
                 "work explicitly when the architecture requires those concerns. Treat the "
                 "validated application specification as the source of truth for roles, routes, "
-                "and business rules."
+                "scopes and business rules."
             ),
             user=(
                 f"Requirements: {requirements.model_dump_json()}\n"
@@ -131,6 +139,8 @@ class SpecialistArtifactAgent:
         assigned = [item for item in plan.items if item.owner is self.role]
         if not assigned:
             return ArtifactSet()
+        if application_spec.target_profile is TargetProfile.ENTERPRISE_DOTNET_REACT:
+            return render_enterprise_role_artifacts(self.role, requirements, application_spec)
         return await self._model.complete(
             ArtifactSet,
             system=(
@@ -176,6 +186,8 @@ class BackendAgent(SpecialistArtifactAgent):
         previous: CodeBundle,
         failure: CommandEvidence,
     ) -> CodeBundle:
+        if application_spec.target_profile is TargetProfile.ENTERPRISE_DOTNET_REACT:
+            return render_enterprise_runtime_bundle(requirements, application_spec)
         return await self._model.complete(
             CodeBundle,
             system=(

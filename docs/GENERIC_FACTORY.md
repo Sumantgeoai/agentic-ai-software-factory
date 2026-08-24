@@ -11,13 +11,28 @@ The target is enterprise CRUD/workflow/business-rule applications with:
 - multiple entities and typed fields;
 - role-aware pages and routes;
 - explicit workflows;
-- structured backend-enforced business rules;
+- typed backend-enforced business rules;
+- explicit record-field-to-identity-claim bindings for own/team scopes;
 - ASP.NET Core + PostgreSQL backend generation;
 - React + TypeScript multi-page frontend generation;
 - xUnit and frontend build validation;
 - Docker Compose and governed release packaging.
 
-This does not claim that a deterministic template engine can invent arbitrary bespoke algorithms, scientific models or unknown external integrations. Those require LLM/tool planning plus explicit capabilities.
+This does not claim that a deterministic compiler can invent arbitrary bespoke algorithms, scientific models or unknown external integrations. Those require LLM/tool planning plus explicit capabilities.
+
+## Probabilistic/deterministic boundary
+
+For the enterprise profile, LLM reasoning ends at the validated requirements, architecture, `ApplicationSpec` and delivery plan. Specialist source artifacts are compiled deterministically from that contract. The LLM does not get unrestricted authority to emit backend authorization or business-rule source code after the specification is accepted.
+
+An enterprise `PermissionSpec` using `own` or `team` scope must identify:
+
+- the entity being protected;
+- the record field that carries the ownership/team identifier;
+- the JWT/OIDC claim type whose values define the caller's allowed scope.
+
+Generated read queries apply the scope before materialization. Generated create/update/decision endpoints enforce the same scope server-side. `all` remains role-authorized but unfiltered.
+
+Enterprise `BusinessRuleSpec.condition` uses a typed comparison expression with field/literal operands and a constrained operator set. Free-form condition strings are rejected for the enterprise profile. Unsupported field/operator combinations fail during deterministic compilation rather than falling back to generated arbitrary code.
 
 ## Hardcoding rule
 
@@ -29,12 +44,12 @@ The same generator code must build at least these independent scenarios:
 2. Citizen Complaint Portal;
 3. Asset Inspection Manager.
 
-Each scenario must produce different namespaces, project/package names, entities, roles, routes and rule metadata from its own `ApplicationSpec`.
+Each scenario must produce different namespaces, project/package names, entities, roles, routes, rule metadata and row-scope claim bindings from its own `ApplicationSpec`.
 
 ## Completion gate
 
 Generic acceptance requires all three scenarios to pass the same pipeline:
 
-`ApplicationSpec -> specialist generation -> security gate -> materialization -> dotnet test -> frontend audit/build -> reviewer -> release manifest`
+`ApplicationSpec -> deterministic specialist compilation -> security gate -> materialization -> dotnet test -> frontend audit/build -> reviewer -> release manifest`
 
 The existing governed runtime, MCP boundary, audit persistence, repair loop, API security and observability remain mandatory and must not be weakened by generic generation.
