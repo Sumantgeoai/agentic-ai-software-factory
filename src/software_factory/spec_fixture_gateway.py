@@ -14,7 +14,7 @@ from .contracts import (
     TaskPlan,
     WorkItem,
 )
-from .model_gateway import FixtureModelGateway
+from .lightweight_fixture import FixtureModelGateway
 from .scenario_fixtures import ScenarioFixture, scenario_for_request
 from .spec_runtime_compiler import (
     render_enterprise_role_artifacts,
