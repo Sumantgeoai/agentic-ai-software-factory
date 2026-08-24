@@ -11,7 +11,6 @@ from .specification import (
     EntityActionSpec,
     EntityFieldSpec,
     EntitySpec,
-    FieldMutationSpec,
 )
 
 _CSHARP_TYPES = {
