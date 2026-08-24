@@ -132,6 +132,13 @@ def _artifact_set(scenario: ScenarioFixture, system: str) -> ArtifactSet:
     )
     role = system.lower()
     files = [file for file in bundle.files if _owned_by_role(file, model, role)]
+    if "qa specialist" in role:
+        files.append(
+            GeneratedFile(
+                path=model.test_path("Usings.cs"),
+                content="global using Xunit;\n",
+            )
+        )
     return ArtifactSet(files=files)
 
 
