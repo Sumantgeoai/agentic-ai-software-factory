@@ -151,7 +151,8 @@ class ApplicationSpec(BaseModel):
         entity_fields = {
             entity.name: {field.name: field for field in entity.fields} for entity in self.entities
         }
-        action_ids = {action.id for action in self.actions}
+        actions_by_id = {action.id: action for action in self.actions}
+        action_ids = set(actions_by_id)
         rule_ids = {rule.id for rule in self.business_rules}
 
         duplicate_roles = len(roles) != len(self.roles)
@@ -160,6 +161,9 @@ class ApplicationSpec(BaseModel):
         duplicate_rules = len(rule_ids) != len(self.business_rules)
         if duplicate_roles or duplicate_pages or duplicate_actions or duplicate_rules:
             raise ValueError("Application specification identifiers must be unique")
+
+        if self.target_profile is TargetProfile.ENTERPRISE_DOTNET_REACT:
+            self._validate_enterprise_entities(entity_fields)
 
         for page in self.pages:
             if not page.route.startswith("/"):
@@ -181,14 +185,16 @@ class ApplicationSpec(BaseModel):
                     self._validate_scope_binding(permission, entities, entity_fields)
 
         for action in self.actions:
+            if action.id in _CRUD_OPERATIONS:
+                raise ValueError(f"Custom action cannot shadow CRUD operation: {action.id}")
             if action.entity not in entities:
                 raise ValueError(f"Unknown entity action target for {action.id}: {action.entity}")
             fields = entity_fields[action.entity]
             for mutation in action.mutations:
                 if mutation.field not in fields:
-                    raise ValueError(
-                        f"Unknown mutation field for {action.id}: {mutation.field}"
-                    )
+                    raise ValueError(f"Unknown mutation field for {action.id}: {mutation.field}")
+                if mutation.field == "Id":
+                    raise ValueError(f"Custom action cannot mutate entity Id: {action.id}")
             resource = _resource_name(action.entity)
             allowed = any(
                 permission.resource == resource
@@ -208,15 +214,44 @@ class ApplicationSpec(BaseModel):
             if unknown:
                 raise ValueError(f"Unknown business-rule roles for {rule.id}: {sorted(unknown)}")
             if self.target_profile is TargetProfile.ENTERPRISE_DOTNET_REACT:
-                self._validate_enterprise_rule(rule, entity_fields, action_ids)
+                self._validate_enterprise_rule(rule, entity_fields, actions_by_id)
 
         for workflow in self.workflows:
             for step in workflow.steps:
                 if step.actor not in roles:
                     raise ValueError(f"Unknown workflow actor: {step.actor}")
-                if step.action_id is not None and step.action_id not in action_ids:
-                    raise ValueError(f"Unknown workflow action: {step.action_id}")
+                if step.action_id is not None:
+                    action = actions_by_id.get(step.action_id)
+                    if action is None:
+                        raise ValueError(f"Unknown workflow action: {step.action_id}")
+                    resource = _resource_name(action.entity)
+                    actor_allowed = any(
+                        permission.role == step.actor
+                        and permission.resource == resource
+                        and action.permission_action in permission.actions
+                        for permission in self.permissions
+                    )
+                    if not actor_allowed:
+                        raise ValueError(
+                            f"Workflow actor lacks action permission: "
+                            f"{step.actor}/{step.action_id}"
+                        )
         return self
+
+    @staticmethod
+    def _validate_enterprise_entities(
+        entity_fields: dict[str, dict[str, EntityFieldSpec]],
+    ) -> None:
+        for entity, fields in entity_fields.items():
+            id_field = fields.get("Id")
+            if id_field is None:
+                raise ValueError(f"Enterprise entity requires Id field: {entity}")
+            if id_field.data_type not in {"uuid", "string", "integer"}:
+                raise ValueError(
+                    f"Enterprise entity Id must be uuid, string, or integer: {entity}.Id"
+                )
+            if id_field.nullable or not id_field.required:
+                raise ValueError(f"Enterprise entity Id must be required: {entity}.Id")
 
     @staticmethod
     def _validate_scope_binding(
@@ -243,24 +278,39 @@ class ApplicationSpec(BaseModel):
                 f"{binding.entity}.{binding.record_field}"
             )
 
-    @staticmethod
     def _validate_enterprise_rule(
+        self,
         rule: BusinessRuleSpec,
         entity_fields: dict[str, dict[str, EntityFieldSpec]],
-        action_ids: set[str],
+        actions_by_id: dict[str, EntityActionSpec],
     ) -> None:
         if isinstance(rule.condition, str):
             raise ValueError(f"Enterprise business rule requires typed condition for {rule.id}")
         if not rule.applies_to:
             raise ValueError(f"Enterprise business rule requires applies_to for {rule.id}")
-        unknown_targets = set(rule.applies_to) - (_CRUD_OPERATIONS | action_ids)
+        unknown_targets = set(rule.applies_to) - (_CRUD_OPERATIONS | set(actions_by_id))
         if unknown_targets:
             raise ValueError(
                 f"Unknown business-rule operation for {rule.id}: {sorted(unknown_targets)}"
             )
+        resource = _resource_name(rule.entity)
+        for operation in rule.applies_to:
+            if operation in _CRUD_OPERATIONS:
+                exists = any(
+                    permission.resource == resource and operation in permission.actions
+                    for permission in self.permissions
+                )
+                if not exists:
+                    raise ValueError(
+                        f"Business rule targets unavailable CRUD operation: {rule.id}/{operation}"
+                    )
+            else:
+                action = actions_by_id[operation]
+                if action.entity != rule.entity:
+                    raise ValueError(
+                        f"Business rule action targets another entity: {rule.id}/{operation}"
+                    )
         fields = entity_fields[rule.entity]
         for operand in (rule.condition.left, rule.condition.right):
             if operand.field is not None and operand.field not in fields:
-                raise ValueError(
-                    f"Unknown rule-condition field for {rule.id}: {operand.field}"
-                )
+                raise ValueError(f"Unknown rule-condition field for {rule.id}: {operand.field}")
