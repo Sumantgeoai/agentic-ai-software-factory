@@ -47,9 +47,7 @@ def _permissions_for(
     ]
 
 
-def _scope_expression(permission: PermissionSpec, entity: EntitySpec, item_name: str) -> str:
-    if permission.scope == "all":
-        return "true"
+def _binding_field(permission: PermissionSpec, entity: EntitySpec) -> EntityFieldSpec:
     binding = permission.scope_binding
     if binding is None:
         raise ValueError(
@@ -59,16 +57,28 @@ def _scope_expression(permission: PermissionSpec, entity: EntitySpec, item_name:
         raise ValueError(
             f"Permission resource binding does not target {entity.name}: {permission.resource}"
         )
-    field = _field(entity, binding.record_field)
+    return _field(entity, binding.record_field)
+
+
+def _claim_source(permission: PermissionSpec, entity: EntitySpec) -> str:
+    binding = permission.scope_binding
+    if binding is None:
+        raise ValueError(
+            f"Scoped permission has no binding: {permission.role}/{permission.resource}"
+        )
+    field = _binding_field(permission, entity)
     method = _claim_values_method(field)
-    claims = f'{method}(user, {json.dumps(binding.claim_type)})'
+    return f'{method}(user, {json.dumps(binding.claim_type)})'
+
+
+def _contains_expression(field: EntityFieldSpec, item_name: str, claims_name: str) -> str:
     field_source = f"{item_name}.{field.name}"
     nullable = field.nullable or not field.required
     if nullable and field.data_type in {"uuid", "integer"}:
-        return f"{field_source}.HasValue && {claims}.Contains({field_source}.Value)"
+        return f"{field_source}.HasValue && {claims_name}.Contains({field_source}.Value)"
     if nullable and field.data_type == "string":
-        return f"{field_source} is not null && {claims}.Contains({field_source})"
-    return f"{claims}.Contains({field_source})"
+        return f"{field_source} is not null && {claims_name}.Contains({field_source})"
+    return f"{claims_name}.Contains({field_source})"
 
 
 def _filter_method(entity: EntitySpec, action: str, permissions: list[PermissionSpec]) -> str:
@@ -82,16 +92,23 @@ def _filter_method(entity: EntitySpec, action: str, permissions: list[Permission
     if all_guard:
         lines.append(f"        if ({all_guard}) return source;")
     lines.append(f"        IQueryable<{entity.name}> filtered = source.Where(_ => false);")
+    scoped_index = 0
     for permission in permissions:
         if permission.scope == "all":
             continue
-        expression = _scope_expression(permission, entity, "item")
+        field = _binding_field(permission, entity)
+        claims_name = f"scopeValues{scoped_index}"
+        expression = _contains_expression(field, "item", claims_name)
         lines.extend(
             [
                 f'        if (user.IsInRole("{permission.role}"))',
+                "        {",
+                f"            var {claims_name} = {_claim_source(permission, entity)};",
                 f"            filtered = filtered.Concat(source.Where(item => {expression}));",
+                "        }",
             ]
         )
+        scoped_index += 1
     lines.extend(["        return filtered.Distinct();", "    }"])
     return "\n".join(lines)
 
@@ -102,13 +119,25 @@ def _ensure_method(entity: EntitySpec, action: str, permissions: list[Permission
         f"    public static void {method}({entity.name} item, ClaimsPrincipal user)",
         "    {",
     ]
+    scoped_index = 0
     for permission in permissions:
         role_guard = f'user.IsInRole("{permission.role}")'
         if permission.scope == "all":
             lines.append(f"        if ({role_guard}) return;")
             continue
-        expression = _scope_expression(permission, entity, "item")
-        lines.append(f"        if ({role_guard} && {expression}) return;")
+        field = _binding_field(permission, entity)
+        claims_name = f"scopeValues{scoped_index}"
+        expression = _contains_expression(field, "item", claims_name)
+        lines.extend(
+            [
+                f"        if ({role_guard})",
+                "        {",
+                f"            var {claims_name} = {_claim_source(permission, entity)};",
+                f"            if ({expression}) return;",
+                "        }",
+            ]
+        )
+        scoped_index += 1
     lines.extend(
         [
             f'        throw new ResourceScopeException("SCOPE_FORBIDDEN", "Caller is outside the {entity.name} {action} scope.");',
