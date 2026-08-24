@@ -21,12 +21,13 @@ from .agents import (
 from .artifacts import ReleaseManager
 from .config import Settings
 from .contracts import AuditEvent, FactoryRun, ProjectRequest, StoredRun
-from .model_gateway import FixtureModelGateway, NvidiaNimGateway, StructuredModel
+from .model_gateway import NvidiaNimGateway, StructuredModel
 from .observability import current_correlation_id, get_tracer
 from .orchestration import WorkflowNodes, build_workflow
 from .persistence import DatabaseRunStore
 from .runtime import WorkspacePolicy, WorkspaceRuntime
 from .security import SecurityAgent
+from .spec_fixture_gateway import SpecDrivenFixtureModelGateway
 
 
 class SoftwareFactoryService:
@@ -62,7 +63,7 @@ class SoftwareFactoryService:
     @staticmethod
     def _create_model(settings: Settings) -> StructuredModel:
         if settings.model_provider == "fixture":
-            return FixtureModelGateway()
+            return SpecDrivenFixtureModelGateway()
         if settings.model_provider == "nvidia":
             return NvidiaNimGateway(settings)
         raise ValueError(f"Unsupported model provider: {settings.model_provider}")
