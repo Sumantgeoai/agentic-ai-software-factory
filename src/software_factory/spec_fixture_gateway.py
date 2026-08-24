@@ -9,16 +9,17 @@ from .contracts import (
     ArchitectureSpec,
     ArtifactSet,
     CodeBundle,
-    GeneratedFile,
     RequirementSpec,
     TargetProfile,
     TaskPlan,
     WorkItem,
 )
 from .model_gateway import FixtureModelGateway
-from .project_model import EnterpriseProjectModel
 from .scenario_fixtures import ScenarioFixture, scenario_for_request
-from .spec_runtime_renderer import render_enterprise_runtime_bundle
+from .spec_runtime_compiler import (
+    render_enterprise_role_artifacts,
+    render_enterprise_runtime_bundle,
+)
 from .specification import ApplicationSpec
 
 T = TypeVar("T", bound=BaseModel)
@@ -68,11 +69,13 @@ def _architecture(scenario: ScenarioFixture) -> ArchitectureSpec:
         security_constraints=[
             "Backend authorization is authoritative; frontend visibility is UX only",
             "Business-rule enforcement is generated from the validated ApplicationSpec",
+            "Row-level own/team/all scopes are generated from typed claim bindings",
             "Generated files remain inside the governed workspace runtime",
         ],
         decisions=[
             "Use the validated ApplicationSpec as the only domain source of truth",
-            "Fail closed when a deterministic business-rule expression is unsupported",
+            "Compile enterprise source deterministically after probabilistic specification",
+            "Fail closed when a typed business rule or scope binding is unsupported",
         ],
     )
 
@@ -93,7 +96,7 @@ def _task_plan(scenario: ScenarioFixture) -> TaskPlan:
                 owner=AgentRole.BACKEND,
                 depends_on=["DB-1"],
                 acceptance_criteria=[
-                    "Role policies and supported backend business rules derive from ApplicationSpec"
+                    "Role policies, row scopes and backend business rules derive from ApplicationSpec"
                 ],
             ),
             WorkItem(
@@ -105,7 +108,7 @@ def _task_plan(scenario: ScenarioFixture) -> TaskPlan:
             ),
             WorkItem(
                 id="QA-1",
-                title=f"Generate deterministic rule tests for {name}",
+                title=f"Generate deterministic rule and scope tests for {name}",
                 owner=AgentRole.QA,
                 depends_on=["API-1", "UI-1"],
                 acceptance_criteria=["Generated xUnit and contract tests validate the specification"],
@@ -122,42 +125,19 @@ def _task_plan(scenario: ScenarioFixture) -> TaskPlan:
 
 
 def _artifact_set(scenario: ScenarioFixture, system: str) -> ArtifactSet:
-    bundle = render_enterprise_runtime_bundle(
-        scenario.requirements,
-        scenario.application_spec,
-    )
-    model = EnterpriseProjectModel.from_spec(
-        scenario.requirements,
-        scenario.application_spec,
-    )
     role = system.lower()
-    files = [file for file in bundle.files if _owned_by_role(file, model, role)]
-    if "qa specialist" in role:
-        files.append(
-            GeneratedFile(
-                path=model.test_path("Usings.cs"),
-                content="global using Xunit;\n",
+    roles = {
+        "database specialist": AgentRole.DATABASE,
+        "backend specialist": AgentRole.BACKEND,
+        "frontend specialist": AgentRole.FRONTEND,
+        "qa specialist": AgentRole.QA,
+        "devops specialist": AgentRole.DEVOPS,
+    }
+    for marker, agent_role in roles.items():
+        if marker in role:
+            return render_enterprise_role_artifacts(
+                agent_role,
+                scenario.requirements,
+                scenario.application_spec,
             )
-        )
-    return ArtifactSet(files=files)
-
-
-def _owned_by_role(file: GeneratedFile, model: EnterpriseProjectModel, role: str) -> bool:
-    path = file.path
-    if "database specialist" in role:
-        return path.startswith(model.api_path("Infrastructure/"))
-    if "backend specialist" in role:
-        return path.startswith(f"backend/{model.api_project}/") and (
-            "/Infrastructure/" not in path and not path.endswith("/Dockerfile")
-        )
-    if "frontend specialist" in role:
-        return path.startswith("frontend/") and path != "frontend/Dockerfile"
-    if "qa specialist" in role:
-        return path.startswith(f"backend/{model.test_project}/") or path.startswith("tests/")
-    if "devops specialist" in role:
-        return (
-            path.endswith("/Dockerfile")
-            or path in {"frontend/Dockerfile", "docker-compose.yml", "README.generated.md"}
-            or path == "application-spec.json"
-        )
     raise ValueError("Spec-driven fixture could not identify specialist role")
