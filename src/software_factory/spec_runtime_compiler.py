@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from .contracts import AgentRole, ArtifactSet, CodeBundle, GeneratedFile, RequirementSpec
 from .project_model import EnterpriseProjectModel
+from .spec_action_renderer import render_application_program
 from .spec_policy_renderer import (
     render_business_rules,
     render_rule_tests,
     render_scope_tests,
-    render_secured_program,
 )
 from .spec_renderer import render_enterprise_bundle
 from .spec_runtime_renderer import (
@@ -36,7 +36,7 @@ def render_enterprise_runtime_bundle(
     files = list(base.files)
     _replace(files, render_business_rules(model, spec))
     _replace(files, render_resource_scopes(model, spec))
-    _replace(files, render_secured_program(model, spec))
+    _replace(files, render_application_program(model, spec))
     _replace(files, _migration(model, spec))
     _replace(files, _test_project(model))
     _replace(files, render_rule_tests(model, spec))
